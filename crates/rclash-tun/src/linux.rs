@@ -59,7 +59,7 @@ pub fn helper_up() -> Result<()> {
                 }
                 log::info!("{bin} {:?} ok", args);
             }
-            Ok(o) if is_check => {
+            Ok(_o) if is_check => {
                 let add_args: Vec<&str> = args
                     .iter()
                     .map(|s| if *s == "-C" { "-A" } else { *s })

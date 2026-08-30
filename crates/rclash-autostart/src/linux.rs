@@ -68,6 +68,7 @@ pub(crate) fn disable_with_base(base: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn is_enabled_with_base(base: &Path) -> bool {
     autostart_file_with_base(base).exists()
 }
