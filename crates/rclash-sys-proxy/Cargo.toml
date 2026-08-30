@@ -1,0 +1,14 @@
+[package]
+name = "rclash-sys-proxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+
+[lib]
+name = "rclash_sys_proxy"
+path = "src/lib.rs"
