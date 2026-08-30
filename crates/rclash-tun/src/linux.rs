@@ -62,8 +62,7 @@ pub fn helper_up() -> Result<()> {
             Ok(o) if is_check => {
                 let add_args: Vec<&str> = args
                     .iter()
-                    .map(|s| if *s == "-C" { "-A" } else { s })
-                    .copied()
+                    .map(|s| if *s == "-C" { "-A" } else { *s })
                     .collect();
                 let out2 = std::process::Command::new(bin).args(&add_args).output();
                 if let Ok(o2) = out2 {
