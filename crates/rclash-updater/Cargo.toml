@@ -1,0 +1,17 @@
+[package]
+name = "rclash-updater"
+version = "0.1.0"
+edition = "2021"
+description = "RClash core auto-update helper (manifest fetch, sha2, atomic)"
+license = "GPL-3.0"
+
+[dependencies]
+anyhow = "1"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "blocking", "rustls-tls-webpki-roots"], default-features = false }
+sha2 = "0.10"
+rclash-config = { path = "../rclash-config" }
+dirs = "5"
+chrono = { version = "0.4", features = ["serde"] }

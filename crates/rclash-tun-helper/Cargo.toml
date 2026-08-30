@@ -1,0 +1,15 @@
+[package]
+name = "rclash-tun-helper"
+version = "0.1.0"
+edition = "2021"
+description = "RClash privileged TUN helper (pkexec / Service)"
+license = "GPL-3.0"
+
+[[bin]]
+name = "rclash-tun-helper"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+log = "0.4"
+rclash-tun = { path = "../rclash-tun" }

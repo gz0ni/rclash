@@ -1,0 +1,11 @@
+[package]
+name = "rclash-tun"
+version = "0.1.0"
+edition = "2021"
+description = "RClash TUN helper client (unprivileged side)"
+license = "GPL-3.0"
+
+[dependencies]
+anyhow = "1"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
