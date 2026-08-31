@@ -120,12 +120,18 @@ jobs:
           fi
           codesign --verify --verbose target/${{ matrix.target }}/release/rclash || true
         shell: bash
+      - name: Prepare release artifacts with unique names
+        run: |
+          mkdir -p release-artifacts
+          if [ -f target/${{ matrix.target }}/release/rclash ]; then cp target/${{ matrix.target }}/release/rclash release-artifacts/rclash-${{ matrix.target }}; fi
+          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then cp target/${{ matrix.target }}/release/rclash.exe release-artifacts/rclash-${{ matrix.target }}.exe; fi
+          if [ -d dist ]; then cp -r dist/* release-artifacts/ 2>/dev/null || true; fi
+          ls -R release-artifacts || true
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: rclash-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/rclash*
-            dist/**/*
+          path: release-artifacts/**/*
           if-no-files-found: warn
 
   publish:
