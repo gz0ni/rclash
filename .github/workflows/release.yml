@@ -125,13 +125,17 @@ jobs:
           mkdir -p release-artifacts
           if [ -f target/${{ matrix.target }}/release/rclash ]; then cp target/${{ matrix.target }}/release/rclash release-artifacts/rclash-${{ matrix.target }}; fi
           if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then cp target/${{ matrix.target }}/release/rclash.exe release-artifacts/rclash-${{ matrix.target }}.exe; fi
-          if [ -d dist ]; then cp -r dist/* release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.dmg 1>/dev/null 2>&1; then cp dist/*.dmg release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.exe 1>/dev/null 2>&1; then cp dist/*.exe release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.deb 1>/dev/null 2>&1; then cp dist/*.deb release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.rpm 1>/dev/null 2>&1; then cp dist/*.rpm release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.AppImage 1>/dev/null 2>&1; then cp dist/*.AppImage release-artifacts/ 2>/dev/null || true; fi
           ls -R release-artifacts || true
         shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: rclash-${{ matrix.target }}
-          path: release-artifacts/**/*
+          path: release-artifacts/*
           if-no-files-found: warn
 
   publish:
