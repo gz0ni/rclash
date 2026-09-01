@@ -19,11 +19,14 @@ Task checklist. The agent maintains this file: creates items, marks them done, k
 ## Open
 
 - [ ] iOS — в долгом ящике
+- [ ] GitHub меню выбора OS (workflow_dispatch all/windows/linux/macos) — как GoMeter `setup.dart`
+- [ ] Сократить релиз-артефакты с 14 до 6 (только setup/portable/dmg/deb/rpm/AppImage, без raw rchash/core)
 
 ## In Progress
 
 ## Done
 
+- [x] NekoBox wireframe main + highlight + ВКЛ/ВЫКЛ + IP+флаг (2026-09-02) — `src/app.rs:148 theme_visuals` NekoBox палетка `panel_fill #F0F2F5/#1E1E1E/#000 card #FFF/#2D2F33/#121212 border #D0D3D8/#3C3F41 corner R6 + accent #3B82F6` + двухколоночный `show_main:968` left 520/right 324 gap12 `Frame card R6` `profiles > * Combo + ключи/обновить + + + interval ******* + proxy > ** Combo + пинг только видимых` `visible_proxy_names:969` `Table Grid 4 flag+name/type/пинг/○→● + ★` `is_sel bg accent_bg_for + flag_for_proxy:2539` + правый `редактировать|логи|настройки` + `График 132px painter accent up/down` + `прием/отдача/ip flag` `selected_proxy_ip_flag:1098` + `rule|global|direct single + proxy|tun multi fill accent` + `master ВКЛ зел #27AE60 / ВЫКЛ красн #E74C3C 32px` + оверлеи `show_config:1422 show_raw_keys:1550 show_editor:1594 show_logs:1656 show_settings:1723` NekoBox `Frame R6` топ-бар `< + R` группа `сорт/копия/экспорт/авто/очист` / `12ч × + открыть ↗ + сброс/сохранить accent` + `cargo fmt/check/clippy/test` ok 36 passed
 - [x] Inno топорный desktop 860×620 + 3 темы OLED + тонкие рамки 1px + монохром иконки hover (2026-09-01) — фикс окно `main.rs:860×620 non-resizable` + `AppConfig theme Light/Dark/Oled default Dark` + `show_traffic_graph` + `theme_visuals/border_color_for` `Rounding::ZERO` `Stroke 1px #000/#FFF` + `RClashApp overlay RawKeys/Editor + loc_fav/Search` + `CentralPanel ScrollArea` Group `Профили (Combo + ↻ + + → 4-меню + ✎ + ☰ + ⚙)` `Прокси (Combo groups + ◎ Пинг)` `Локации Grid 4 страны/тип/пинг/radio+★` `График 80px if show` `Трафик прием/отдача/ip` `Режим rule/global/direct + Система proxy/tun + автообновление` + `Window Введите текст ниже (multiline) + Window Добавить (буфер/url/файл/сырой)` + `Config/RawKeys/Editor/Logs/Settings (4 таба Приложение/Ядро/DNS/Сеть BOLT + ? хелпы hover)` монохром иконки `← ↻ ✎ ⚙ ☰ ◎ ★ ☆ ? ×` `on_hover_text` + `cargo fmt/check/clippy/test` ok 36 passed + `android/` удалён + `ci/release` без android
 - [x] Удаление Android — `android/` `ci.yml android-lint` `release.yml build-android` + доки `project.md/architecture.md/README` — контейнер `app/core` только desktop (2026-09-01)
 

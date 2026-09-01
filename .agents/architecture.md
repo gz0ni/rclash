@@ -16,14 +16,14 @@ RClash/  (monorepo root)
 ## Core Layer (desktop)
 
 ### app
-- responsibility: top-level egui app, Inno 860×620, 1px mono groups
+- responsibility: top-level egui app, NekoBox 860×620 two-column, R6 1px muted borders, accent #3B82F6 highlight
 - key files: `src/app.rs`, `src/main.rs`
-- notable: `RClashApp {overlay, loc_* , settings_tab}`, `theme_visuals/border_color_for`, `Frame 1px`
+- notable: `RClashApp {overlay, loc_* , settings_tab, selected_proxy/group}`, `theme_visuals/border_color_for/card_fill_for/panel_fill_for R6 accent #3B82F6 green #27AE60 red #E74C3C`, `visible_proxy_names/selected_proxy_ip_flag/flag_for_proxy`, `show_main two-col 520+324` `show_config/show_raw_keys/show_editor/show_logs/show_settings` NekoBox Frame R6, `Frame 1px muted #D0D3D8/#3C3F41`
 
 ### crates/rclash-config
 - responsibility: mihomo YAML parsing, validation, profile persistence + `AppConfig {theme Light/Dark/Oled default Dark, show_traffic_graph bool, minimize_to_tray, skipped_version, last_check, update_interval}` persist `app.json` + `profiles.json` + `profiles/custom.yaml` unified RAW + PatchClashConfig mirror BOLT
 - key files: `crates/rclash-config/src/lib.rs`, `crates/rclash-config/src/profile.rs`, `crates/rclash-config/src/custom.rs`
-- notable: `serde_yaml`/`serde_json` models, stored in `dirs::config_dir()/RClash` (Win `%APPDATA%/RClash`, Linux `~/.config/rclash`, macOS `~/Library/Application Support/RClash`), `Theme Light/Dark/Oled` thin 1px borders (Light #000000 Dark/Oled #FFFFFF), `UpdateInterval {Manual,30m,1h,6h,12h,24h}` default 24h with subscription override via `UpdateInterval::effective`, atomic write `tmp+rename`, `Profile {name,path,url,update_interval,last_update,is_raw}`, `ProfileStore {profiles,active}`, `custom.yaml` dedup `name/server:port+type` + `proxy-groups PROXY select`
+- notable: `serde_yaml`/`serde_json` models, stored in `dirs::config_dir()/RClash` (Win `%APPDATA%/RClash`, Linux `~/.config/rclash`, macOS `~/Library/Application Support/RClash`), `Theme Light/Dark/Oled` NekoBox muted 1px R6 (Light #D0D3D8 Dark #3C3F41 Oled #2A2A2A) card #FFF/#2D2F33/#121212 panel #F0F2F5/#1E1E1E/#000 accent #3B82F6, `UpdateInterval {Manual,30m,1h,6h,12h,24h}` default 24h with subscription override via `UpdateInterval::effective`, atomic write `tmp+rename`, `Profile {name,path,url,update_interval,last_update,is_raw}`, `ProfileStore {profiles,active}`, `custom.yaml` dedup `name/server:port+type` + `proxy-groups PROXY select`
 
 ### crates/rclash-core-manager
 - responsibility: spawn/manage `rclash-core` sidecar, REST client to mihomo API
@@ -53,9 +53,9 @@ RClash/  (monorepo root)
 ## Feature Layer (desktop)
 
 ### app — `src/app.rs`
-- responsibility: Inno style fixed window, group frames 1px, monochrome icons with hover, help ? tooltips, BOLT settings
+- responsibility: NekoBox wireframe main + overlays, R6 muted borders, accent highlight, master ВКЛ green/ВЫКЛ red, ping only visible, IP+flag, help ? tooltips
 - key files: `src/app.rs`
-- notable: `RClashApp {overlay: None|Editor|Logs|Settings|RawKeys, app_config{theme Light/Dark/Oled show_traffic_graph}, core_version/alive, profile_store, raw_keys, import_url/interval/raw_text, proxies_data/mode, proxy_delays}` via `poll-promise::Promise::spawn_thread` + `reqwest::blocking`, `rfd`, helpers `group_frame/icon_btn_mono/help_btn`
+- notable: `RClashApp {overlay: None|Config|Settings|Logs|RawKeys|Editor, app_config{theme Light/Dark/Oled show_traffic_graph}, core_version/alive, profile_store, raw_keys, import_url/interval/raw_text, proxies_data/mode, proxy_delays, selected_proxy/group, loc_search/filter/fav}`, `visible_proxy_names/selected_proxy_ip_flag`, `flag_for_proxy/truncate/extract_singles/extract_groups/delay_color/delay_text/format_bytes/reload_core` via `poll-promise::Promise::spawn_thread` + `reqwest::blocking`, `rfd`
 
 ## Packaging
 - Desktop: `packaging/inno/RClash.iss` → `setup-RClash-<ver>.exe`, `cargo deb`/`cargo-generate-rpm`/`appimagetool`/`create-dmg` via `.github/workflows/release.yml` on tag `v*` (monorepo 5 triples + `go build -C core`)

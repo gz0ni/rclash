@@ -145,20 +145,59 @@ pub struct RClashApp {
     pub show_add_menu_requested: bool,
 }
 
+const NEKO_ACCENT: egui::Color32 = egui::Color32::from_rgb(0x3B, 0x82, 0xF6);
+const NEKO_ACCENT_HOVER: egui::Color32 = egui::Color32::from_rgb(0x4A, 0x90, 0xFF);
+const NEKO_GREEN: egui::Color32 = egui::Color32::from_rgb(0x27, 0xAE, 0x60);
+const NEKO_RED: egui::Color32 = egui::Color32::from_rgb(0xE7, 0x4C, 0x3C);
+const R6: u8 = 6;
+
+fn card_fill_for(theme: Theme) -> egui::Color32 {
+    match theme {
+        Theme::Light => egui::Color32::WHITE,
+        Theme::Dark => egui::Color32::from_rgb(0x2D, 0x2F, 0x33),
+        Theme::Oled => egui::Color32::from_rgb(0x12, 0x12, 0x12),
+    }
+}
+fn panel_fill_for(theme: Theme) -> egui::Color32 {
+    match theme {
+        Theme::Light => egui::Color32::from_rgb(0xF0, 0xF2, 0xF5),
+        Theme::Dark => egui::Color32::from_rgb(0x1E, 0x1E, 0x1E),
+        Theme::Oled => egui::Color32::BLACK,
+    }
+}
+
 fn theme_visuals(theme: Theme) -> egui::Visuals {
     let mut v = match theme {
-        Theme::Light => egui::Visuals::light(),
-        Theme::Dark => egui::Visuals::dark(),
+        Theme::Light => {
+            let mut x = egui::Visuals::light();
+            x.panel_fill = panel_fill_for(theme);
+            x.window_fill = panel_fill_for(theme);
+            x.extreme_bg_color = egui::Color32::from_rgb(0xE8, 0xEA, 0xED);
+            x.faint_bg_color = panel_fill_for(theme);
+            x.code_bg_color = card_fill_for(theme);
+            x
+        }
+        Theme::Dark => {
+            let mut x = egui::Visuals::dark();
+            x.panel_fill = panel_fill_for(theme);
+            x.window_fill = panel_fill_for(theme);
+            x.extreme_bg_color = egui::Color32::from_rgb(0x2A, 0x2C, 0x2F);
+            x.faint_bg_color = panel_fill_for(theme);
+            x.code_bg_color = card_fill_for(theme);
+            x
+        }
         Theme::Oled => {
-            let mut o = egui::Visuals::dark();
-            o.panel_fill = egui::Color32::BLACK;
-            o.window_fill = egui::Color32::BLACK;
-            o.extreme_bg_color = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
-            o.faint_bg_color = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
-            o.code_bg_color = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
-            o
+            let mut x = egui::Visuals::dark();
+            x.panel_fill = panel_fill_for(theme);
+            x.window_fill = panel_fill_for(theme);
+            x.extreme_bg_color = egui::Color32::from_rgb(0x12, 0x12, 0x12);
+            x.faint_bg_color = panel_fill_for(theme);
+            x.code_bg_color = card_fill_for(theme);
+            x
         }
     };
+    let border = border_color_for(theme);
+    let card = card_fill_for(theme);
     for w in [
         &mut v.widgets.noninteractive,
         &mut v.widgets.inactive,
@@ -166,30 +205,36 @@ fn theme_visuals(theme: Theme) -> egui::Visuals {
         &mut v.widgets.active,
         &mut v.widgets.open,
     ] {
-        w.corner_radius = egui::CornerRadius::ZERO;
-        let border = match theme {
-            Theme::Light => egui::Color32::BLACK,
-            Theme::Dark | Theme::Oled => egui::Color32::WHITE,
-        };
+        w.corner_radius = egui::CornerRadius::same(R6);
         w.bg_stroke = egui::Stroke::new(1.0_f32, border);
         w.fg_stroke = egui::Stroke::new(1.0_f32, border);
-        if theme == Theme::Oled {
-            w.bg_fill = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
-        }
+        w.bg_fill = card;
     }
-    v.widgets.noninteractive.corner_radius = egui::CornerRadius::ZERO;
-    v.widgets.inactive.corner_radius = egui::CornerRadius::ZERO;
-    v.widgets.hovered.corner_radius = egui::CornerRadius::ZERO;
-    v.widgets.active.corner_radius = egui::CornerRadius::ZERO;
-    v.widgets.open.corner_radius = egui::CornerRadius::ZERO;
+    v.widgets.hovered.bg_fill = match theme {
+        Theme::Light => egui::Color32::from_rgb(0xE8, 0xED, 0xFF),
+        Theme::Dark => egui::Color32::from_rgb(0x3A, 0x3D, 0x45),
+        Theme::Oled => egui::Color32::from_rgb(0x22, 0x22, 0x22),
+    };
+    v.widgets.active.bg_fill = NEKO_ACCENT;
+    v.widgets.active.fg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::WHITE);
+    v.selection.bg_fill = NEKO_ACCENT;
+    v.selection.stroke = egui::Stroke::new(1.0_f32, NEKO_ACCENT_HOVER);
     v
 }
 
 pub fn border_color_for(theme: Theme) -> egui::Color32 {
     match theme {
-        Theme::Light => egui::Color32::BLACK,
-        Theme::Dark | Theme::Oled => egui::Color32::WHITE,
+        Theme::Light => egui::Color32::from_rgb(0xD0, 0xD3, 0xD8),
+        Theme::Dark => egui::Color32::from_rgb(0x3C, 0x3F, 0x41),
+        Theme::Oled => egui::Color32::from_rgb(0x2A, 0x2A, 0x2A),
     }
+}
+fn accent_bg_for(theme: Theme) -> egui::Color32 {
+    let _ = theme;
+    egui::Color32::from_rgba_premultiplied(0x3B, 0x82, 0xF6, 36)
+}
+fn accent_stroke() -> egui::Color32 {
+    NEKO_ACCENT
 }
 
 impl RClashApp {
@@ -920,107 +965,253 @@ impl RClashApp {
     fn border(&self) -> egui::Color32 {
         border_color_for(self.app_config.theme)
     }
+    fn visible_proxy_names(&self) -> Vec<String> {
+        let proxies = extract_singles(&self.proxies_data);
+        let groups = extract_groups(&self.proxies_data);
+        proxies
+            .into_iter()
+            .filter(|(name, val)| {
+                let q = self.loc_search.to_lowercase();
+                if !q.is_empty()
+                    && !name.to_lowercase().contains(&q)
+                    && !val
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&q)
+                {
+                    return false;
+                }
+                if self.loc_filter == LocFilter::Fav && !self.loc_fav.contains(name) {
+                    return false;
+                }
+                if self.loc_filter == LocFilter::Fast {
+                    let d = self.proxy_delays.get(name).copied().flatten().or_else(|| {
+                        val.get("history")
+                            .and_then(|v| v.as_array())
+                            .and_then(|a| a.last())
+                            .and_then(|e| e.get("delay"))
+                            .and_then(|d| d.as_u64())
+                    });
+                    if d.map_or(true, |v| v >= 100) {
+                        return false;
+                    }
+                }
+                if self.selected_group != "all" {
+                    if self.selected_group == "fav" {
+                        if !self.loc_fav.contains(name) {
+                            return false;
+                        }
+                    } else {
+                        let mut found = false;
+                        for (gname, gval) in &groups {
+                            if gname == &self.selected_group {
+                                if let Some(arr) = gval.get("all").and_then(|v| v.as_array()) {
+                                    for v in arr {
+                                        if v.as_str() == Some(name.as_str()) {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        if !found {
+                            return false;
+                        }
+                    }
+                }
+                true
+            })
+            .map(|(n, _)| n)
+            .collect()
+    }
+    fn selected_proxy_ip_flag(&self) -> (String, String) {
+        let name = match &self.selected_proxy {
+            Some(n) => n,
+            None => return ("-".to_owned(), "".to_owned()),
+        };
+        let flag = flag_for_proxy(name);
+        if let Some(data) = &self.proxies_data {
+            if let Some(proxies) = data.get("proxies").and_then(|p| p.as_object()) {
+                if let Some(val) = proxies.get(name) {
+                    if let Some(server) = val.get("server").and_then(|v| v.as_str()) {
+                        return (server.to_owned(), flag);
+                    }
+                    if let Some(ip) = val.get("ip").and_then(|v| v.as_str()) {
+                        return (ip.to_owned(), flag);
+                    }
+                }
+            }
+        }
+        if let Ok(v) = rclash_config::custom::read_custom_yaml() {
+            if let Some(seq) = v.get("proxies").and_then(|p| p.as_sequence()) {
+                for item in seq {
+                    if let Some(m) = item.as_mapping() {
+                        let n = m
+                            .get(serde_yaml::Value::String("name".into()))
+                            .and_then(|x| x.as_str());
+                        if n == Some(name.as_str()) {
+                            if let Some(s) = m
+                                .get(serde_yaml::Value::String("server".into()))
+                                .and_then(|x| x.as_str())
+                            {
+                                return (s.to_owned(), flag);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ("-".to_owned(), flag)
+    }
     fn show_main(&mut self, ctx: &egui::Context) {
         let border = self.border();
+        let card = card_fill_for(self.app_config.theme);
         let proxy_on = rclash_sys_proxy::current()
             .get()
             .map(|s| s == rclash_sys_proxy::ProxyState::Enabled)
             .unwrap_or(false);
-        let core_path = rclash_core_manager::resolve_core_path()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "рядом с приложением".to_owned());
+        let tun_on = self.app_config.tun_enabled;
+        let master_on = proxy_on || tun_on;
+        let accent = NEKO_ACCENT;
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_space(6.0);
-                egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Профили").strong().size(11.0));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(egui::RichText::new("\u{2699}").size(13.0)).on_hover_text("Настройки").clicked() { self.overlay = Overlay::Settings; }
-                            if ui.button(egui::RichText::new("\u{2630}").size(13.0)).on_hover_text("Логи").clicked() { self.overlay = Overlay::Logs; }
-                            if ui.button(egui::RichText::new("\u{270E}").size(13.0)).on_hover_text("Редактировать конфиг").clicked() { self.overlay = Overlay::Editor; }
-                            if ui.button(egui::RichText::new("+").size(14.0)).on_hover_text("Добавить профиль").clicked() { self.show_add_menu_requested = true; }
-                            if ui.button(egui::RichText::new("\u{21BB}").size(13.0)).on_hover_text("Обновить").clicked() {
-                                let _ = poll_promise::Promise::spawn_thread("reload_core", move || { let c = reqwest::blocking::Client::new(); let _ = c.put("http://127.0.0.1:9090/configs?force=true").send(); });
-                            }
-                        });
-                    });
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        let active = self.profile_store.active.clone().unwrap_or_else(|| "—".to_owned());
-                        egui::ComboBox::from_id_salt("profiles_combo").selected_text(active.clone()).width(220.0).show_ui(ui, |ui| {
-                            for pr in &self.profile_store.profiles.clone() {
-                                let is_active = self.profile_store.active.as_deref() == Some(&pr.name);
-                                if ui.selectable_label(is_active, &pr.name).clicked() {
-                                    let mut store = self.profile_store.clone();
-                                    store.active = Some(pr.name.clone());
-                                    let _ = rclash_config::profile::save_profile_store(&store);
-                                    self.profile_store = store;
-                                    let _ = poll_promise::Promise::spawn_thread("reload_core", move || { let c = reqwest::blocking::Client::new(); let _ = c.put("http://127.0.0.1:9090/configs?force=true").send(); });
+            ui.add_space(8.0);
+            let avail_w = ui.available_width();
+            let gap = 12.0;
+            let right_w = 324.0;
+            let left_w = (avail_w - gap - right_w).max(420.0);
+
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width(left_w);
+                    ui.set_max_width(left_w);
+                    let frame = egui::Frame::new()
+                        .fill(card)
+                        .stroke(egui::Stroke::new(1.0_f32, border))
+                        .corner_radius(egui::CornerRadius::same(R6))
+                        .inner_margin(egui::Margin::same(8));
+                    frame.show(ui, |ui| {
+                        ui.set_width(left_w - 16.0);
+                        let active_name = self.profile_store.active.clone().unwrap_or_else(|| "—".to_owned());
+                        let is_raw_mode = !self.raw_keys.is_empty() && self.profile_store.profiles.iter().find(|p| Some(&p.name) == self.profile_store.active.as_ref()).is_none() && self.profile_store.active.is_none();
+                        let imported_file_active = if let Some(active) = &self.profile_store.active {
+                            if let Some(pr) = self.profile_store.profiles.iter().find(|p| &p.name == active) {
+                                pr.url.is_none()
+                            } else { false }
+                        } else { false };
+
+                        ui.horizontal(|ui| {
+                            let w1 = left_w - 16.0 - 90.0 - 16.0;
+                            let combo_w = if imported_file_active { w1 + 74.0 } else { (w1 * 0.68).max(160.0) };
+                            egui::ComboBox::from_id_salt("profiles_combo_main")
+                                .selected_text(format!("profiles > {}", active_name))
+                                .width(combo_w)
+                                .show_ui(ui, |ui| {
+                                    for pr in &self.profile_store.profiles.clone() {
+                                        let is_active = self.profile_store.active.as_deref() == Some(&pr.name);
+                                        let lbl = if is_active { egui::RichText::new(&pr.name).color(accent).strong() } else { egui::RichText::new(&pr.name) };
+                                        if ui.selectable_label(is_active, lbl).clicked() {
+                                            let mut store = self.profile_store.clone();
+                                            store.active = Some(pr.name.clone());
+                                            let _ = rclash_config::profile::save_profile_store(&store);
+                                            self.profile_store = store;
+                                            reload_core(ctx);
+                                        }
+                                    }
+                                    if !self.raw_keys.is_empty() {
+                                        ui.separator();
+                                        for k in self.raw_keys.clone() {
+                                            let lab = format!("сырой: {}", truncate(&k, 28));
+                                            if ui.selectable_label(false, lab).clicked() { self.overlay = Overlay::RawKeys; }
+                                        }
+                                    }
+                                });
+                            if !imported_file_active {
+                                if is_raw_mode || (!self.raw_keys.is_empty() && self.profile_store.active.is_none()) {
+                                    if ui.add_sized([68.0, 22.0], egui::Button::new(egui::RichText::new("ключи").size(11.0))).on_hover_text("Сырые ключи").clicked() {
+                                        self.overlay = Overlay::RawKeys;
+                                    }
+                                } else if ui.add_sized([68.0, 22.0], egui::Button::new(egui::RichText::new("обновить").size(11.0))).on_hover_text("Обновить конфиг").clicked() {
+                                    reload_core(ctx);
                                 }
                             }
-                            if !self.raw_keys.is_empty() {
-                                ui.separator();
-                                for k in self.raw_keys.clone() {
-                                    let lab = format!("сырой: {}", k);
-                                    if ui.selectable_label(false, lab).clicked() { self.overlay = Overlay::RawKeys; }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let plus_btn = egui::Button::new(egui::RichText::new("+").size(14.0).strong());
+                                if ui.add_sized([26.0, 22.0], plus_btn).on_hover_text("Добавить профиль").clicked() {
+                                    self.show_add_menu_requested = true;
                                 }
-                            }
+                                if master_on {
+                                    let mut iv = self.app_config.update_interval;
+                                    egui::ComboBox::from_id_salt("auto_iv_main_plus")
+                                        .selected_text(iv.label_ru())
+                                        .width(52.0)
+                                        .show_ui(ui, |ui| {
+                                            for v in UpdateInterval::all() { if ui.selectable_label(iv==*v, v.label_ru()).clicked() { iv = *v; } }
+                                        });
+                                    if iv != self.app_config.update_interval {
+                                        self.app_config.update_interval = iv;
+                                        let _ = rclash_config::save_app_config(&self.app_config);
+                                    }
+                                }
+                            });
                         });
-                        ui.label(egui::RichText::new(format!("{} прокси", self.raw_keys.len())).weak().small());
-                    });
-                    ui.add_space(2.0);
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new(format!("профили: {} | {}", self.profile_store.profiles.len(), core_path)).weak().small().monospace());
-                    });
-                });
-                ui.add_space(6.0);
-                egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Прокси").strong().size(11.0));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let testing = self.delays_running;
-                            if ui.add_enabled(!testing, egui::Button::new(egui::RichText::new("\u{25CE}").size(12.0))).on_hover_text("Пинг").clicked() {
-                                if let Some(data) = self.proxies_data.clone() { let names = extract_proxy_names(&data); self.test_delays_async(names, ctx); } else { self.fetch_proxies(ctx); }
-                            }
-                            if testing { ui.spinner(); }
-                        });
-                    });
-                    ui.horizontal(|ui| {
-                        let groups = extract_groups(&self.proxies_data);
-                        let mut sel = self.selected_group.clone();
-                        egui::ComboBox::from_id_salt("proxy_group").selected_text(if sel=="all" {"Все группы".to_owned()} else {sel.clone()}).width(180.0).show_ui(ui, |ui| {
-                            if ui.selectable_label(sel=="all", "Все группы").clicked() { sel="all".to_owned(); }
-                            for (g, _) in &groups { if ui.selectable_label(sel==*g, g).clicked() { sel=g.clone(); } }
-                            if ui.selectable_label(sel=="fav", "★ Избранное").clicked() { sel="fav".to_owned(); }
-                        });
-                        self.selected_group = sel;
-                    });
-                });
-                ui.add_space(6.0);
-                egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Локации").strong().size(11.0));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(egui::RichText::new(format!("{} избранных", self.loc_fav.len())).weak().small());
-                        });
-                    });
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut self.loc_search).hint_text("Поиск...").desired_width(160.0));
+                        ui.add_space(4.0);
                         ui.separator();
-                        for (f,l) in [(LocFilter::All,"Все"),(LocFilter::Fav,"★"),(LocFilter::Fast,"●")] {
-                            let sel = self.loc_filter==f;
-                            if ui.selectable_label(sel,l).on_hover_text(l).clicked(){ self.loc_filter=f; }
-                        }
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let groups = extract_groups(&self.proxies_data);
+                            let mut sel = self.selected_group.clone();
+                            let combo_label = if sel=="all" { "proxy > Все группы".to_owned() } else if sel=="fav" { "proxy > ★ Избранное".to_owned() } else { format!("proxy > {}", sel) };
+                            egui::ComboBox::from_id_salt("proxy_group_main2")
+                                .selected_text(combo_label)
+                                .width(left_w - 100.0)
+                                .show_ui(ui, |ui| {
+                                    if ui.selectable_label(sel=="all", "Все группы").clicked() { sel="all".to_owned(); }
+                                    for (g, _) in &groups { if ui.selectable_label(sel==*g, g).clicked() { sel=g.clone(); } }
+                                    if ui.selectable_label(sel=="fav", "★ Избранное").clicked() { sel="fav".to_owned(); }
+                                });
+                            self.selected_group = sel;
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let testing = self.delays_running;
+                                let btn = egui::Button::new(egui::RichText::new("пинг").size(11.0));
+                                if ui.add_enabled(!testing, btn).on_hover_text("Пинг видимых").clicked() {
+                                    let visible = self.visible_proxy_names();
+                                    if !visible.is_empty() { self.test_delays_async(visible, ctx); } else if let Some(data) = self.proxies_data.clone() { let names = extract_proxy_names(&data); if !names.is_empty() { self.test_delays_async(names, ctx); } } else { self.fetch_proxies(ctx); }
+                                }
+                                if testing { ui.spinner(); }
+                            });
+                        });
                     });
-                    ui.add_space(4.0);
-                    egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
-                        egui::Grid::new("locs_grid").num_columns(4).spacing([8.0,2.0]).striped(true).show(ui, |ui| {
-                            ui.label(egui::RichText::new("Страна").weak().small()); ui.label(egui::RichText::new("Тип").weak().small()); ui.label(egui::RichText::new("Пинг").weak().small()); ui.label(egui::RichText::new("").weak().small()); ui.end_row();
+                    ui.add_space(8.0);
+                    let table_frame = egui::Frame::new()
+                        .fill(card)
+                        .stroke(egui::Stroke::new(1.0_f32, border))
+                        .corner_radius(egui::CornerRadius::same(R6))
+                        .inner_margin(egui::Margin { left: 6, right: 6, top: 6, bottom: 6 });
+                    table_frame.show(ui, |ui| {
+                        ui.set_width(left_w - 16.0);
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut self.loc_search).hint_text("Поиск...").desired_width(140.0));
+                            ui.separator();
+                            for (f,l) in [(LocFilter::All,"Все "),(LocFilter::Fav,"★ "),(LocFilter::Fast,"● Быстро")] {
+                                let sel = self.loc_filter==f;
+                                let lab = if sel { egui::RichText::new(l).color(accent).strong() } else { egui::RichText::new(l) };
+                                if ui.selectable_label(sel, lab).clicked(){ self.loc_filter=f; }
+                            }
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(egui::RichText::new(format!("{} избр", self.loc_fav.len())).weak().small());
+                            });
+                        });
+                        ui.add_space(4.0);
+                        ui.separator();
+                        egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false,false]).show(ui, |ui| {
                             let proxies = extract_singles(&self.proxies_data);
                             let groups2 = extract_groups(&self.proxies_data);
-                            let filtered: Vec<_> = proxies.into_iter().filter(|(name,val)| {
+                            let filtered: Vec<(String, serde_json::Value)> = proxies.into_iter().filter(|(name,val)| {
                                 let q=self.loc_search.to_lowercase();
                                 if !q.is_empty() && !name.to_lowercase().contains(&q) && !val.get("type").and_then(|v| v.as_str()).unwrap_or("").to_lowercase().contains(&q) { return false; }
                                 if self.loc_filter==LocFilter::Fav && !self.loc_fav.contains(name) { return false; }
@@ -1035,55 +1226,93 @@ impl RClashApp {
                                 true
                             }).collect();
                             if filtered.is_empty() {
-                                ui.label(egui::RichText::new("Нет локаций").weak()); ui.end_row();
+                                ui.add_space(16.0);
+                                ui.vertical_centered(|ui| { ui.label(egui::RichText::new("Нет локаций").weak()); });
+                                ui.add_space(16.0);
                             } else {
-                                for (name,val) in filtered {
-                                    let tp = val.get("type").and_then(|v| v.as_str()).unwrap_or("?").to_owned();
-                                    let delay = self.proxy_delays.get(&name).copied().flatten().or_else(|| val.get("history").and_then(|v| v.as_array()).and_then(|a| a.last()).and_then(|e| e.get("delay")).and_then(|d| d.as_u64()));
-                                    let delay_str = delay_text(delay);
-                                    let is_fav = self.loc_fav.contains(&name);
-                                    let is_sel = self.selected_proxy.as_deref()==Some(&name);
-                                    let name_rich = if is_sel { egui::RichText::new(&name).strong() } else { egui::RichText::new(&name) };
-                                    ui.label(name_rich);
-                                    ui.label(egui::RichText::new(tp).weak().small().monospace());
-                                    ui.label(egui::RichText::new(delay_str).small().monospace());
-                                    ui.horizontal(|ui| {
-                                        if ui.add(egui::RadioButton::new(is_sel, "")).on_hover_text("Выбрать").clicked() {
-                                            self.selected_proxy = Some(name.clone());
-                                            let target=name.clone();
-                                            let group=if self.selected_group!="all" && self.selected_group!="fav" { self.selected_group.clone() } else { "PROXY".to_owned() };
-                                            let _ = poll_promise::Promise::spawn_thread("select_proxy", move || { let c=reqwest::blocking::Client::new(); let _=c.put(format!("http://127.0.0.1:9090/proxies/{}", group)).json(&serde_json::json!({"name": target})).send(); });
-                                        }
-                                        let fav_icon = if is_fav {"★"} else {"☆"};
-                                        if ui.button(egui::RichText::new(fav_icon).size(11.0)).on_hover_text(if is_fav {"Убрать из избранного"} else {"В избранное"}).clicked() {
-                                            if is_fav { self.loc_fav.remove(&name); let _=rclash_db::open().map(|c| {let _=rclash_db::remove_favorite(&c,&name);}); } else { self.loc_fav.insert(name.clone()); let g=if self.selected_group!="all" && self.selected_group!="fav" {Some(self.selected_group.as_str())} else {None}; let _=rclash_db::open().map(|c| {let _=rclash_db::add_favorite(&c,&name,g);}); }
-                                        }
-                                    });
-                                    ui.end_row();
-                                }
+                                egui::Grid::new("locs_grid_main").num_columns(4).spacing([6.0, 2.0]).striped(false).show(ui, |ui| {
+                                    for (name,val) in filtered {
+                                        let tp = val.get("type").and_then(|v| v.as_str()).unwrap_or("?").to_owned();
+                                        let delay = self.proxy_delays.get(&name).copied().flatten().or_else(|| val.get("history").and_then(|v| v.as_array()).and_then(|a| a.last()).and_then(|e| e.get("delay")).and_then(|d| d.as_u64()));
+                                        let delay_str = delay_text(delay);
+                                        let is_fav = self.loc_fav.contains(&name);
+                                        let is_sel = self.selected_proxy.as_deref()==Some(&name);
+                                        let bg = if is_sel { accent_bg_for(self.app_config.theme) } else { egui::Color32::TRANSPARENT };
+                                        let stroke = if is_sel { egui::Stroke::new(1.0_f32, accent) } else { egui::Stroke::NONE };
+                                        let flag = flag_for_proxy(&name);
+                                        let name_label = if is_sel { egui::RichText::new(format!("{} {}", flag, name)).color(accent).strong().size(11.0) } else { egui::RichText::new(format!("{} {}", flag, name)).size(11.0) };
+                                        let type_label = egui::RichText::new(tp).weak().small().monospace();
+                                        let delay_col = delay_color(delay);
+                                        let delay_label = if delay.is_some() { egui::RichText::new(delay_str).color(delay_col).small().monospace().strong() } else { egui::RichText::new(delay_str).weak().small().monospace() };
+                                        let row_frame = egui::Frame::new().fill(bg).stroke(stroke).corner_radius(egui::CornerRadius::same(4)).inner_margin(egui::Margin { left: 4, right: 4, top: 2, bottom: 2 });
+                                        row_frame.show(ui, |ui| {
+                                            ui.set_width((left_w - 60.0) * 0.55);
+                                            ui.label(name_label);
+                                        });
+                                        ui.label(type_label);
+                                        ui.label(delay_label);
+                                        ui.horizontal(|ui| {
+                                            let sel_lab = if is_sel { egui::RichText::new("●").color(accent).size(10.0) } else { egui::RichText::new("○").weak().size(10.0) };
+                                            if ui.selectable_label(is_sel, sel_lab).on_hover_text("Выбрать").clicked() {
+                                                self.selected_proxy = Some(name.clone());
+                                                let target=name.clone();
+                                                let group=if self.selected_group!="all" && self.selected_group!="fav" { self.selected_group.clone() } else { "PROXY".to_owned() };
+                                                let _ = poll_promise::Promise::spawn_thread("select_proxy", move || { let c=reqwest::blocking::Client::new(); let _=c.put(format!("http://127.0.0.1:9090/proxies/{}", group)).json(&serde_json::json!({"name": target})).send(); });
+                                            }
+                                            let fav_icon = if is_fav {"★"} else {"☆"};
+                                            let fav_col = if is_fav { accent } else { egui::Color32::from_gray(120) };
+                                            if ui.small_button(egui::RichText::new(fav_icon).size(11.0).color(fav_col)).on_hover_text(if is_fav {"Убрать из избранного"} else {"В избранное"}).clicked() {
+                                                if is_fav { self.loc_fav.remove(&name); let _=rclash_db::open().map(|c| {let _=rclash_db::remove_favorite(&c,&name);}); } else { self.loc_fav.insert(name.clone()); let g=if self.selected_group!="all" && self.selected_group!="fav" {Some(self.selected_group.as_str())} else {None}; let _=rclash_db::open().map(|c| {let _=rclash_db::add_favorite(&c,&name,g);}); }
+                                            }
+                                        });
+                                        ui.end_row();
+                                    }
+                                });
                             }
                         });
                     });
                 });
-                ui.add_space(6.0);
-                if self.app_config.show_traffic_graph {
-                    egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+                ui.add_space(gap);
+                ui.vertical(|ui| {
+                    ui.set_width(right_w);
+                    ui.set_max_width(right_w);
+                    let top_frame = egui::Frame::new().fill(card).stroke(egui::Stroke::new(1.0_f32, border)).corner_radius(egui::CornerRadius::same(R6)).inner_margin(egui::Margin::same(4));
+                    top_frame.show(ui, |ui| {
+                        ui.set_width(right_w - 8.0);
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("График").strong().size(11.0));
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(egui::RichText::new(format!("↑ {} ↓ {}", format_bytes(self.traffic_total_up), format_bytes(self.traffic_total_down))).weak().small().monospace());
-                            });
+                            let btn_w = (right_w - 16.0) / 3.0 - 4.0;
+                            let mk_btn = |label: &str| egui::Button::new(egui::RichText::new(label).size(10.0));
+                            if ui.add_sized([btn_w, 24.0], mk_btn("редактировать")).clicked() { self.overlay = Overlay::Editor; }
+                            if ui.add_sized([btn_w, 24.0], mk_btn("логи")).clicked() { self.overlay = Overlay::Logs; }
+                            if ui.add_sized([btn_w, 24.0], mk_btn("настройки")).clicked() { self.overlay = Overlay::Settings; }
                         });
-                        ui.add_space(4.0);
-                        if !self.core_alive { ui.label(egui::RichText::new("Ядро не запущено").weak()); }
-                        else if self.traffic_up_buf.is_empty() && self.traffic_down_buf.is_empty() { ui.label(egui::RichText::new("Ожидание данных...").weak()); ui.add(egui::ProgressBar::new(0.0).animate(true)); }
-                        else {
+                    });
+                    ui.add_space(8.0);
+                    let graph_frame = egui::Frame::new().fill(card).stroke(egui::Stroke::new(1.0_f32, border)).corner_radius(egui::CornerRadius::same(R6)).inner_margin(egui::Margin::same(8));
+                    graph_frame.show(ui, |ui| {
+                        ui.set_width(right_w - 16.0);
+                        ui.label(egui::RichText::new("График").weak().size(10.0));
+                        ui.add_space(2.0);
+                        let graph_h = 132.0;
+                        if !self.core_alive {
+                            ui.allocate_ui_with_layout(egui::vec2(right_w - 16.0, graph_h), egui::Layout::top_down(egui::Align::Center), |ui| {
+                                ui.add_space(40.0);
+                                ui.label(egui::RichText::new("Ядро не запущено").weak().small());
+                            });
+                        } else if self.traffic_up_buf.is_empty() && self.traffic_down_buf.is_empty() {
+                            ui.allocate_ui_with_layout(egui::vec2(right_w - 16.0, graph_h), egui::Layout::top_down(egui::Align::Center), |ui| {
+                                ui.add_space(30.0);
+                                ui.label(egui::RichText::new("Ожидание данных...").weak().small());
+                                ui.add(egui::ProgressBar::new(0.0).animate(true));
+                            });
+                        } else {
                             let max_val = self.traffic_up_buf.iter().chain(self.traffic_down_buf.iter()).copied().fold(0.0_f64, f64::max).max(1024.0);
-                            let (rect,_) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 80.0), egui::Sense::hover());
+                            let (rect, _) = ui.allocate_exact_size(egui::vec2(right_w - 16.0, graph_h), egui::Sense::hover());
                             let painter = ui.painter_at(rect);
-                            painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0_f32, border), egui::StrokeKind::Inside);
-                            let inner = rect.shrink2(egui::vec2(4.0,4.0));
-                            for i in 1..3 { let y=inner.top()+inner.height()*(i as f32/3.0); painter.hline(inner.x_range(), y, (1.0, egui::Color32::from_gray(80))); }
+                            painter.rect_filled(rect, egui::CornerRadius::same(6), card);
+                            painter.rect_stroke(rect, egui::CornerRadius::same(6), egui::Stroke::new(1.0_f32, border), egui::StrokeKind::Inside);
+                            let inner = rect.shrink2(egui::vec2(6.0, 6.0));
+                            for i in 1..3 { let y=inner.top()+inner.height()*(i as f32/3.0); painter.hline(inner.x_range(), y, (0.8_f32, egui::Color32::from_gray(70))); }
                             let plot = |buf:&VecDeque<f64>, col:egui::Color32| {
                                 if buf.len()<2 { return; }
                                 let mut pts=Vec::with_capacity(buf.len());
@@ -1092,259 +1321,308 @@ impl RClashApp {
                                     let y=inner.bottom()-(*v as f32/max_val as f32).clamp(0.0,1.0)*inner.height();
                                     pts.push(egui::pos2(x,y));
                                 }
-                                painter.add(egui::Shape::line(pts, egui::Stroke::new(1.2_f32, col)));
+                                painter.add(egui::Shape::line(pts, egui::Stroke::new(1.6_f32, col)));
                             };
-                            plot(&self.traffic_up_buf, egui::Color32::from_gray(140));
-                            plot(&self.traffic_down_buf, egui::Color32::WHITE);
-                            ui.add_space(2.0);
+                            plot(&self.traffic_up_buf, egui::Color32::from_rgb(0x3B, 0x82, 0xF6));
+                            plot(&self.traffic_down_buf, egui::Color32::from_rgb(0x10, 0xB9, 0x81));
+                            ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 let cur_up=self.traffic_up_buf.back().copied().unwrap_or(0.0) as u64;
                                 let cur_down=self.traffic_down_buf.back().copied().unwrap_or(0.0) as u64;
-                                ui.label(egui::RichText::new(format!("↑ {}/с", rclash_core_manager::api::format_bytes(cur_up))).weak().small());
-                                ui.label(egui::RichText::new(format!("↓ {}/с", rclash_core_manager::api::format_bytes(cur_down))).weak().small());
-                                ui.label(egui::RichText::new(format!("макс {:.1} KB/с", max_val/1024.0)).weak().small());
+                                ui.label(egui::RichText::new(format!("↑ {}/s", rclash_core_manager::api::format_bytes(cur_up))).weak().small().monospace());
+                                ui.label(egui::RichText::new(format!("↓ {}/s", rclash_core_manager::api::format_bytes(cur_down))).weak().small().monospace());
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(egui::RichText::new(format!("max {:.0} KB/s", max_val/1024.0)).weak().small());
+                                });
                             });
                         }
                     });
-                    ui.add_space(6.0);
-                }
-                egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label(egui::RichText::new("Приём").weak().small());
-                            ui.label(egui::RichText::new(format_bytes(self.traffic_total_down)).strong().monospace());
-                        });
+                    ui.add_space(2.0);
+                    let stats_frame = egui::Frame::new().fill(card).stroke(egui::Stroke::new(1.0_f32, border)).corner_radius(egui::CornerRadius::same(R6)).inner_margin(egui::Margin::same(6));
+                    stats_frame.show(ui, |ui| {
+                        ui.set_width(right_w - 12.0);
+                        let row = |ui: &mut egui::Ui, label: &str, value: String| {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(label).weak().size(10.0));
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(egui::RichText::new(value).strong().small().monospace());
+                                });
+                            });
+                        };
+                        row(ui, "прием", format_bytes(self.traffic_total_down));
                         ui.separator();
-                        ui.vertical(|ui| {
-                            ui.label(egui::RichText::new("Отдача").weak().small());
-                            ui.label(egui::RichText::new(format_bytes(self.traffic_total_up)).strong().monospace());
-                        });
+                        row(ui, "отдача", format_bytes(self.traffic_total_up));
                         ui.separator();
-                        ui.vertical(|ui| {
-                            ui.label(egui::RichText::new("IP").weak().small());
-                            ui.label(egui::RichText::new(self.core_version.clone().unwrap_or_else(|| "-".to_owned())).small().monospace());
-                        });
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let status = if self.core_alive {"● Online"} else {"○ Offline"};
-                            ui.label(egui::RichText::new(status).small());
-                        });
+                        let (ip_str, flag) = self.selected_proxy_ip_flag();
+                        row(ui, "ip", if ip_str=="-" { "-".to_owned() } else { format!("{} {}", flag, ip_str) });
                     });
-                });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                        ui.label(egui::RichText::new("Режим").strong().size(11.0));
+                    ui.add_space(8.0);
+                    let ctrl_frame = egui::Frame::new().fill(card).stroke(egui::Stroke::new(1.0_f32, border)).corner_radius(egui::CornerRadius::same(R6)).inner_margin(egui::Margin::same(6));
+                    ctrl_frame.show(ui, |ui| {
+                        ui.set_width(right_w - 12.0);
                         ui.horizontal(|ui| {
-                            for (mode,label,help) in [(ProxyMode::Rule,"rule","Правила — по конфигу"),(ProxyMode::Global,"global","Весь трафик через прокси"),(ProxyMode::Direct,"direct","Без прокси")] {
+                            let bw = (right_w - 24.0)/3.0 - 4.0;
+                            for (mode,label) in [(ProxyMode::Rule,"rule"),(ProxyMode::Global,"global"),(ProxyMode::Direct,"direct")] {
                                 let sel=self.proxies_mode==mode;
-                                if ui.selectable_label(sel,label).on_hover_text(help).clicked() { self.set_mode_async(mode, ctx); }
+                                let mut btn = egui::Button::new(egui::RichText::new(label).size(11.0));
+                                if sel { btn = btn.fill(accent).stroke(egui::Stroke::new(1.0_f32, accent)); }
+                                let resp = ui.add_sized([bw, 26.0], btn);
+                                if resp.on_hover_text(match mode { ProxyMode::Rule=>"Правила", ProxyMode::Global=>"Глобально", ProxyMode::Direct=>"Прямо"}).clicked() { self.set_mode_async(mode, ctx); }
                             }
                         });
-                    });
-                    ui.add_space(6.0);
-                    egui::Frame::new().stroke(egui::Stroke::new(1.0_f32, border)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-                        ui.label(egui::RichText::new("Система").strong().size(11.0));
-                        let mut proxy_on2 = proxy_on;
-                        if ui.checkbox(&mut proxy_on2, "proxy").on_hover_text("Системный прокси 127.0.0.1:7890").changed() {
-                            let target=if proxy_on2 {rclash_sys_proxy::ProxyState::Enabled} else {rclash_sys_proxy::ProxyState::Disabled};
-                            let _=rclash_sys_proxy::current().set(target, "127.0.0.1:7890");
-                        }
-                        let mut tun_on = self.app_config.tun_enabled;
-                        if ui.checkbox(&mut tun_on, "tun").on_hover_text("TUN-режим (требует прав администратора)").changed() {
-                            self.app_config.tun_enabled = tun_on;
-                            let _=rclash_config::save_app_config(&self.app_config);
-                        }
-                        if tun_on || proxy_on {
-                            ui.horizontal(|ui| {
-                                ui.label("Автообновление");
-                                let mut iv = self.app_config.update_interval;
-                                egui::ComboBox::from_id_salt("auto_iv_main").selected_text(iv.label_ru()).width(60.0).show_ui(ui, |ui| {
-                                    for v in UpdateInterval::all() { if ui.selectable_label(iv==*v, v.label_ru()).clicked() { iv = *v; } }
-                                });
-                                if iv!=self.app_config.update_interval { self.app_config.update_interval=iv; let _=rclash_config::save_app_config(&self.app_config); }
-                                let _ = ui.small_button(egui::RichText::new("?").size(9.0)).on_hover_text("Интервал обновления подписок; берётся из подписки если указан, иначе из приложения");
-                            });
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let bw = (right_w - 20.0)/2.0 - 4.0;
+                            let mk = |label: &str, on: bool| {
+                                let mut b = egui::Button::new(egui::RichText::new(label).size(11.0));
+                                if on { b = b.fill(accent).stroke(egui::Stroke::new(1.0_f32, accent)); }
+                                b
+                            };
+                            if ui.add_sized([bw, 26.0], mk("proxy", proxy_on)).clicked() {
+                                let new_on = !proxy_on;
+                                let target=if new_on {rclash_sys_proxy::ProxyState::Enabled} else {rclash_sys_proxy::ProxyState::Disabled};
+                                let _=rclash_sys_proxy::current().set(target, "127.0.0.1:7890");
+                            }
+                            if ui.add_sized([bw, 26.0], mk("tun", tun_on)).clicked() {
+                                let new_tun = !tun_on;
+                                self.app_config.tun_enabled = new_tun;
+                                let _=rclash_config::save_app_config(&self.app_config);
+                            }
+                        });
+                        ui.add_space(6.0);
+                        let master_txt = if master_on { "ВКЛ • Отключить" } else { "ВЫКЛ • Включить" };
+                        let master_fill = if master_on { NEKO_GREEN } else { NEKO_RED };
+                        let master_btn = egui::Button::new(egui::RichText::new(master_txt).size(12.0).strong().color(egui::Color32::WHITE)).fill(master_fill).corner_radius(egui::CornerRadius::same(6));
+                        if ui.add_sized([right_w - 12.0, 32.0], master_btn).on_hover_text(if master_on {"Отключить proxy/tun"} else {"Включить"}).clicked() {
+                            if master_on {
+                                let _=rclash_sys_proxy::current().set(rclash_sys_proxy::ProxyState::Disabled, "127.0.0.1:7890");
+                                self.app_config.tun_enabled = false;
+                                let _=rclash_config::save_app_config(&self.app_config);
+                            } else {
+                                let _=rclash_sys_proxy::current().set(rclash_sys_proxy::ProxyState::Enabled, "127.0.0.1:7890");
+                                if !tun_on {
+                                    self.app_config.tun_enabled = true;
+                                    let _=rclash_config::save_app_config(&self.app_config);
+                                }
+                            }
                         }
                     });
                 });
-                ui.add_space(8.0);
             });
         });
     }
     fn show_config(&mut self, ctx: &egui::Context) {
         let border = self.border();
+        let card = card_fill_for(self.app_config.theme);
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .button(egui::RichText::new("< Назад").size(11.0))
-                    .on_hover_text("Назад")
-                    .clicked()
-                {
-                    self.overlay = Overlay::None;
-                }
-                ui.label(egui::RichText::new("Выбор конфига").strong().size(13.0));
+            ui.add_space(6.0);
+            let top_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(6));
+            top_frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_sized(
+                            [36.0, 22.0],
+                            egui::Button::new(egui::RichText::new("<").size(13.0).strong()),
+                        )
+                        .on_hover_text("Назад")
+                        .clicked()
+                    {
+                        self.overlay = Overlay::None;
+                    }
+                    ui.label(egui::RichText::new("Выбор конфига").strong().size(13.0));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_sized(
+                                [72.0, 22.0],
+                                egui::Button::new(egui::RichText::new("Очистить").size(11.0)),
+                            )
+                            .clicked()
+                        {
+                            self.import_raw_text.clear();
+                        }
+                    });
+                });
             });
-            ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                if let Some(e) = self.profiles_error.clone() {
-                    ui.colored_label(egui::Color32::from_rgb(220, 80, 80), e);
-                }
-                if let Some(e) = self.raw_error.clone() {
-                    ui.colored_label(egui::Color32::from_rgb(220, 180, 60), e);
-                }
-                egui::Frame::new()
-                    .stroke(egui::Stroke::new(1.0_f32, border))
-                    .inner_margin(egui::Margin::same(8))
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new("Импорт по URL").strong().size(11.0));
-                        ui.horizontal(|ui| {
-                            ui.label("URL:");
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.import_url)
-                                    .hint_text("https://example.com/sub.yaml")
-                                    .desired_width(300.0),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label("Имя:");
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.import_name)
-                                    .hint_text("необязательно")
-                                    .desired_width(150.0),
-                            );
-                            egui::ComboBox::from_id_salt("cfg_iv")
-                                .selected_text(self.import_interval.label_ru())
-                                .width(70.0)
-                                .show_ui(ui, |ui| {
-                                    for iv in UpdateInterval::all() {
-                                        ui.selectable_value(
-                                            &mut self.import_interval,
-                                            *iv,
-                                            iv.label_ru(),
-                                        );
-                                    }
-                                });
-                            if ui
-                                .button(egui::RichText::new("⬇ Загрузить").size(11.0))
-                                .on_hover_text("Загрузить подписку")
-                                .clicked()
-                            {
-                                let url = self.import_url.trim().to_owned();
-                                let name_hint = self.import_name.trim().to_owned();
-                                let interval = self.import_interval;
-                                if url.is_empty() {
-                                    self.profiles_error = Some("URL пустой".into());
+            ui.add_space(6.0);
+            let content_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(8));
+            content_frame.show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    if let Some(e) = self.profiles_error.clone() {
+                        ui.colored_label(egui::Color32::from_rgb(220, 80, 80), e);
+                    }
+                    if let Some(e) = self.raw_error.clone() {
+                        ui.colored_label(egui::Color32::from_rgb(220, 180, 60), e);
+                    }
+                    ui.label(egui::RichText::new("Импорт по URL").strong().size(11.0));
+                    ui.horizontal(|ui| {
+                        ui.label("URL:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.import_url)
+                                .hint_text("https://example.com/sub.yaml")
+                                .desired_width(300.0),
+                        );
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Имя:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.import_name)
+                                .hint_text("необязательно")
+                                .desired_width(150.0),
+                        );
+                        egui::ComboBox::from_id_salt("cfg_iv")
+                            .selected_text(self.import_interval.label_ru())
+                            .width(70.0)
+                            .show_ui(ui, |ui| {
+                                for iv in UpdateInterval::all() {
+                                    ui.selectable_value(
+                                        &mut self.import_interval,
+                                        *iv,
+                                        iv.label_ru(),
+                                    );
+                                }
+                            });
+                        if ui
+                            .button(egui::RichText::new("⬇ Загрузить").size(11.0))
+                            .on_hover_text("Загрузить подписку")
+                            .clicked()
+                        {
+                            let url = self.import_url.trim().to_owned();
+                            let name_hint = self.import_name.trim().to_owned();
+                            let interval = self.import_interval;
+                            if url.is_empty() {
+                                self.profiles_error = Some("URL пустой".into());
+                            } else {
+                                let name = if name_hint.is_empty() {
+                                    url.split('/')
+                                        .next_back()
+                                        .unwrap_or("subscription")
+                                        .split('?')
+                                        .next()
+                                        .unwrap_or("subscription")
+                                        .to_owned()
                                 } else {
-                                    let name = if name_hint.is_empty() {
-                                        url.split('/')
-                                            .next_back()
-                                            .unwrap_or("subscription")
-                                            .split('?')
-                                            .next()
-                                            .unwrap_or("subscription")
-                                            .to_owned()
-                                    } else {
-                                        name_hint
-                                    };
-                                    match fetch_and_save_subscription(&url, &name, interval) {
-                                        Ok(profile) => {
-                                            let mut store = self.profile_store.clone();
-                                            store.add_or_replace(profile);
-                                            let _ =
-                                                rclash_config::profile::save_profile_store(&store);
-                                            self.profile_store = store;
-                                            self.profiles_error = None;
-                                            self.import_url.clear();
-                                            self.import_name.clear();
-                                            reload_core(ctx);
-                                        }
-                                        Err(e) => {
-                                            self.profiles_error = Some(format!("Ошибка: {e}"));
-                                        }
+                                    name_hint
+                                };
+                                match fetch_and_save_subscription(&url, &name, interval) {
+                                    Ok(profile) => {
+                                        let mut store = self.profile_store.clone();
+                                        store.add_or_replace(profile);
+                                        let _ = rclash_config::profile::save_profile_store(&store);
+                                        self.profile_store = store;
+                                        self.profiles_error = None;
+                                        self.import_url.clear();
+                                        self.import_name.clear();
+                                        reload_core(ctx);
+                                    }
+                                    Err(e) => {
+                                        self.profiles_error = Some(format!("Ошибка: {e}"));
                                     }
                                 }
                             }
-                        });
+                        }
                     });
-                ui.add_space(6.0);
-                egui::Frame::new()
-                    .stroke(egui::Stroke::new(1.0_f32, border))
-                    .inner_margin(egui::Margin::same(8))
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new("Сырые ссылки").strong().size(11.0));
-                        ui.small("Каждая с новой строки → custom.yaml");
-                        ui.add(
-                            egui::TextEdit::multiline(&mut self.import_raw_text)
-                                .hint_text("hysteria2://...\ntrojan://...")
-                                .desired_rows(3)
-                                .desired_width(f32::INFINITY),
-                        );
-                        ui.horizontal(|ui| {
-                            if ui
-                                .button(egui::RichText::new("+ Добавить").size(11.0))
-                                .on_hover_text("Добавить ссылки")
-                                .clicked()
-                            {
-                                let text = self.import_raw_text.trim().to_owned();
-                                if text.is_empty() {
-                                    self.raw_error = Some("Вставь ссылку".into());
-                                } else {
-                                    match rclash_subscription::parse_text_links(&text) {
-                                        Ok(proxies) if proxies.is_empty() => {
-                                            self.raw_error = Some("Не распознано".into());
-                                        }
-                                        Ok(proxies) => {
-                                            match rclash_config::custom::add_raw_proxies(proxies) {
-                                                Ok(added) => {
-                                                    self.raw_error = None;
-                                                    self.reload_raw_keys();
-                                                    self.import_raw_text.clear();
-                                                    if added == 0 {
-                                                        self.raw_error = Some("Уже есть".into());
-                                                    } else {
-                                                        reload_core(ctx);
-                                                    }
-                                                }
-                                                Err(e) => {
-                                                    self.raw_error = Some(format!("{e}"));
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("Сырые ссылки").strong().size(11.0));
+                    ui.small("Каждая с новой строки → custom.yaml");
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.import_raw_text)
+                            .hint_text("hysteria2://...\ntrojan://...")
+                            .desired_rows(3)
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.horizontal(|ui| {
+                        if ui
+                            .button(egui::RichText::new("+ Добавить").size(11.0))
+                            .on_hover_text("Добавить ссылки")
+                            .clicked()
+                        {
+                            let text = self.import_raw_text.trim().to_owned();
+                            if text.is_empty() {
+                                self.raw_error = Some("Вставь ссылку".into());
+                            } else {
+                                match rclash_subscription::parse_text_links(&text) {
+                                    Ok(proxies) if proxies.is_empty() => {
+                                        self.raw_error = Some("Не распознано".into());
+                                    }
+                                    Ok(proxies) => {
+                                        match rclash_config::custom::add_raw_proxies(proxies) {
+                                            Ok(added) => {
+                                                self.raw_error = None;
+                                                self.reload_raw_keys();
+                                                self.import_raw_text.clear();
+                                                if added == 0 {
+                                                    self.raw_error = Some("Уже есть".into());
+                                                } else {
+                                                    reload_core(ctx);
                                                 }
                                             }
+                                            Err(e) => {
+                                                self.raw_error = Some(format!("{e}"));
+                                            }
                                         }
-                                        Err(e) => {
-                                            self.raw_error = Some(format!("{e}"));
-                                        }
+                                    }
+                                    Err(e) => {
+                                        self.raw_error = Some(format!("{e}"));
                                     }
                                 }
                             }
-                            if ui
-                                .button(egui::RichText::new("Очистить").size(11.0))
-                                .on_hover_text("Очистить поле")
-                                .clicked()
-                            {
-                                self.import_raw_text.clear();
-                            }
-                        });
+                        }
+                        if ui
+                            .button(egui::RichText::new("Очистить").size(11.0))
+                            .clicked()
+                        {
+                            self.import_raw_text.clear();
+                        }
                     });
-                ui.add_space(6.0);
-                ui.label(
-                    egui::RichText::new(format!(
-                        "Профили — {} шт.",
-                        self.profile_store.profiles.len()
-                    ))
-                    .strong(),
-                );
-                let profiles = self.profile_store.profiles.clone();
-                let active = self.profile_store.active.clone();
-                for p in profiles {
-                    let is_active = active.as_deref() == Some(&p.name);
-                    egui::Frame::new()
-                        .stroke(egui::Stroke::new(1.0_f32, border))
-                        .inner_margin(egui::Margin::same(6))
-                        .show(ui, |ui| {
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "Профили — {} шт.",
+                            self.profile_store.profiles.len()
+                        ))
+                        .strong(),
+                    );
+                    let profiles = self.profile_store.profiles.clone();
+                    let active = self.profile_store.active.clone();
+                    for p in profiles {
+                        let is_active = active.as_deref() == Some(&p.name);
+                        let row_frame = egui::Frame::new()
+                            .fill(if is_active {
+                                accent_bg_for(self.app_config.theme)
+                            } else {
+                                egui::Color32::TRANSPARENT
+                            })
+                            .stroke(if is_active {
+                                egui::Stroke::new(1.0_f32, NEKO_ACCENT)
+                            } else {
+                                egui::Stroke::new(1.0_f32, border)
+                            })
+                            .corner_radius(egui::CornerRadius::same(R6))
+                            .inner_margin(egui::Margin::same(6));
+                        row_frame.show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(if is_active { "●" } else { "○" });
+                                ui.label(if is_active {
+                                    egui::RichText::new("●").color(NEKO_ACCENT).strong()
+                                } else {
+                                    egui::RichText::new("○").weak()
+                                });
                                 ui.vertical(|ui| {
-                                    ui.label(egui::RichText::new(&p.name).strong());
+                                    let name_rt = if is_active {
+                                        egui::RichText::new(&p.name).color(NEKO_ACCENT).strong()
+                                    } else {
+                                        egui::RichText::new(&p.name).strong()
+                                    };
+                                    ui.label(name_rt);
                                     ui.label(
                                         egui::RichText::new(&p.path).weak().small().monospace(),
                                     );
@@ -1384,375 +1662,509 @@ impl RClashApp {
                                 );
                             });
                         });
-                }
-                ui.add_space(6.0);
-                egui::Frame::new()
-                    .stroke(egui::Stroke::new(1.0_f32, border))
-                    .inner_margin(egui::Margin::same(8))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Сырые ключи").strong().size(11.0));
-                            if ui
-                                .button(egui::RichText::new("+").size(12.0))
-                                .on_hover_text("Добавить сырой ключ")
-                                .clicked()
-                            {
-                                self.show_add_menu_requested = true;
-                            }
-                            if ui
-                                .button(egui::RichText::new("Открыть").size(11.0))
-                                .on_hover_text("Открыть все сырые")
-                                .clicked()
-                            {
-                                self.overlay = Overlay::RawKeys;
-                            }
-                        });
-                        if self.raw_keys.is_empty() {
-                            ui.label(egui::RichText::new("Пока пусто").weak());
-                        } else {
-                            for k in self.raw_keys.clone() {
-                                ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new(&k).small().monospace());
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            if ui
-                                                .button(egui::RichText::new("×").size(10.0))
-                                                .on_hover_text("Удалить")
-                                                .clicked()
-                                            {
-                                                let _ = rclash_config::custom::remove_raw_proxy(&k);
-                                                self.reload_raw_keys();
-                                                reload_core(ctx);
-                                            }
-                                        },
-                                    );
-                                });
-                            }
+                        ui.add_space(2.0);
+                    }
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Сырые ключи").strong().size(11.0));
+                        if ui
+                            .small_button(egui::RichText::new("+").size(12.0))
+                            .on_hover_text("Добавить сырой ключ")
+                            .clicked()
+                        {
+                            self.show_add_menu_requested = true;
+                        }
+                        if ui
+                            .small_button(egui::RichText::new("Открыть →").size(11.0))
+                            .on_hover_text("Открыть все сырые")
+                            .clicked()
+                        {
+                            self.overlay = Overlay::RawKeys;
                         }
                     });
-            });
-        });
-    }
-    fn show_raw_keys(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .button(egui::RichText::new("< Назад").size(11.0))
-                    .on_hover_text("Назад")
-                    .clicked()
-                {
-                    self.overlay = Overlay::Config;
-                }
-                ui.label(egui::RichText::new("Сырые ключи").strong().size(13.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .button(egui::RichText::new("+").size(13.0))
-                        .on_hover_text("Добавить")
-                        .clicked()
-                    {
-                        self.show_add_menu_requested = true;
+                    if self.raw_keys.is_empty() {
+                        ui.label(egui::RichText::new("Пока пусто").weak());
+                    } else {
+                        for k in self.raw_keys.clone() {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(truncate(&k, 64)).small().monospace());
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .button(egui::RichText::new("×").size(10.0))
+                                            .on_hover_text("Удалить")
+                                            .clicked()
+                                        {
+                                            let _ = rclash_config::custom::remove_raw_proxy(&k);
+                                            self.reload_raw_keys();
+                                            reload_core(ctx);
+                                        }
+                                    },
+                                );
+                            });
+                        }
                     }
                 });
             });
-            ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                if self.raw_keys.is_empty() {
-                    ui.label(egui::RichText::new("Нет ключей").weak());
-                    return;
-                }
-                egui::Grid::new("raw_grid")
-                    .num_columns(3)
-                    .spacing([8.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new("#").weak().small());
-                        ui.label(egui::RichText::new("Ссылка").weak().small());
-                        ui.label(egui::RichText::new("").weak().small());
-                        ui.end_row();
-                        for (i, key) in self.raw_keys.clone().into_iter().enumerate() {
-                            let raw = rclash_config::custom::read_custom_yaml()
-                                .ok()
-                                .and_then(|v| {
-                                    v.get("proxies")
-                                        .and_then(|p| p.as_sequence())
-                                        .and_then(|seq| {
-                                            seq.iter()
-                                                .find(|item| {
-                                                    item.as_mapping()
-                                                        .and_then(|m| {
-                                                            m.get(serde_yaml::Value::String(
-                                                                "name".into(),
-                                                            ))
-                                                        })
-                                                        .and_then(|n| n.as_str())
-                                                        == Some(key.as_str())
-                                                })
-                                                .map(|val| {
-                                                    serde_yaml::to_string(val)
-                                                        .unwrap_or_else(|_| key.clone())
-                                                })
-                                        })
-                                })
-                                .unwrap_or_else(|| key.clone());
-                            ui.label(format!("{}", i + 1));
-                            ui.label(egui::RichText::new(truncate(&raw, 48)).small().monospace());
-                            if ui
-                                .button(egui::RichText::new("×").size(11.0))
-                                .on_hover_text("Удалить")
-                                .clicked()
-                            {
-                                let _ = rclash_config::custom::remove_raw_proxy(&key);
-                                self.reload_raw_keys();
-                                reload_core(ctx);
-                            }
-                            ui.end_row();
+        });
+    }
+
+    fn show_raw_keys(&mut self, ctx: &egui::Context) {
+        let border = self.border();
+        let card = card_fill_for(self.app_config.theme);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.add_space(6.0);
+            let top_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(6));
+            top_frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_sized(
+                            [36.0, 22.0],
+                            egui::Button::new(egui::RichText::new("<").size(13.0).strong()),
+                        )
+                        .on_hover_text("Назад")
+                        .clicked()
+                    {
+                        self.overlay = Overlay::Config;
+                    }
+                    ui.label(egui::RichText::new("Сырые ключи").strong().size(13.0));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_sized(
+                                [32.0, 22.0],
+                                egui::Button::new(egui::RichText::new("+").size(14.0).strong()),
+                            )
+                            .on_hover_text("Добавить")
+                            .clicked()
+                        {
+                            self.show_add_menu_requested = true;
                         }
                     });
+                });
+            });
+            ui.add_space(6.0);
+            let content_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(8));
+            content_frame.show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    if self.raw_keys.is_empty() {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(40.0);
+                            ui.label(egui::RichText::new("Нет ключей").weak());
+                        });
+                        return;
+                    }
+                    for (i, key) in self.raw_keys.clone().into_iter().enumerate() {
+                        let row_frame = egui::Frame::new()
+                            .fill(egui::Color32::TRANSPARENT)
+                            .stroke(egui::Stroke::new(1.0_f32, border))
+                            .corner_radius(egui::CornerRadius::same(4))
+                            .inner_margin(egui::Margin::same(6));
+                        row_frame.show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new(format!("{}", i + 1)).weak().small());
+                                ui.label(
+                                    egui::RichText::new(truncate(&key, 64)).small().monospace(),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .button(egui::RichText::new("×").size(11.0))
+                                            .on_hover_text("Удалить")
+                                            .clicked()
+                                        {
+                                            let _ = rclash_config::custom::remove_raw_proxy(&key);
+                                            self.reload_raw_keys();
+                                            reload_core(ctx);
+                                        }
+                                    },
+                                );
+                            });
+                        });
+                        ui.add_space(2.0);
+                    }
+                });
             });
         });
     }
+
     fn show_editor(&mut self, ctx: &egui::Context) {
         let border = self.border();
+        let card = card_fill_for(self.app_config.theme);
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .button(egui::RichText::new("< Назад").size(11.0))
-                    .on_hover_text("Назад")
-                    .clicked()
-                {
-                    self.overlay = Overlay::None;
-                }
-                ui.label(egui::RichText::new("Редактор конфига").strong().size(13.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(6.0);
+            let top_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(6));
+            top_frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
                     if ui
-                        .button(egui::RichText::new("Сохранить").size(11.0))
-                        .on_hover_text("Сохранить")
+                        .add_sized(
+                            [36.0, 22.0],
+                            egui::Button::new(egui::RichText::new("<").size(13.0).strong()),
+                        )
+                        .on_hover_text("Назад")
                         .clicked()
                     {
-                        if let Some(name) = self.editor_name.clone() {
-                            match rclash_db::open().and_then(|c| {
-                                rclash_db::update_content(&c, &name, &self.editor_content)
-                                    .map_err(|e| anyhow::anyhow!("{}", e))
-                            }) {
-                                Ok(_) => {
-                                    self.editor_error = None;
-                                    reload_core(ctx);
-                                    self.overlay = Overlay::None;
+                        self.overlay = Overlay::None;
+                    }
+                    ui.label(egui::RichText::new("Редактор конфига").strong().size(13.0));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_sized(
+                                [80.0, 22.0],
+                                egui::Button::new(egui::RichText::new("Сохранить").size(11.0))
+                                    .fill(NEKO_ACCENT)
+                                    .stroke(egui::Stroke::new(1.0_f32, NEKO_ACCENT)),
+                            )
+                            .clicked()
+                        {
+                            if let Some(name) = self.editor_name.clone() {
+                                match rclash_db::open().and_then(|c| {
+                                    rclash_db::update_content(&c, &name, &self.editor_content)
+                                        .map_err(|e| anyhow::anyhow!("{}", e))
+                                }) {
+                                    Ok(_) => {
+                                        self.editor_error = None;
+                                        reload_core(ctx);
+                                        self.overlay = Overlay::None;
+                                    }
+                                    Err(e) => {
+                                        self.editor_error = Some(format!("{}", e));
+                                    }
                                 }
-                                Err(e) => {
-                                    self.editor_error = Some(format!("{}", e));
-                                }
-                            }
-                        } else {
-                            match (|| -> anyhow::Result<()> {
-                                let path = rclash_config::custom::custom_yaml_path()
-                                    .ok_or_else(|| anyhow::anyhow!("no path"))?;
-                                std::fs::write(&path, self.editor_content.as_bytes())?;
-                                Ok(())
-                            })() {
-                                Ok(_) => {
-                                    self.editor_error = None;
-                                    reload_core(ctx);
-                                    self.overlay = Overlay::None;
-                                }
-                                Err(e) => {
-                                    self.editor_error = Some(format!("{}", e));
+                            } else {
+                                match (|| -> anyhow::Result<()> {
+                                    let path = rclash_config::custom::custom_yaml_path()
+                                        .ok_or_else(|| anyhow::anyhow!("no path"))?;
+                                    std::fs::write(&path, self.editor_content.as_bytes())?;
+                                    Ok(())
+                                })() {
+                                    Ok(_) => {
+                                        self.editor_error = None;
+                                        reload_core(ctx);
+                                        self.overlay = Overlay::None;
+                                    }
+                                    Err(e) => {
+                                        self.editor_error = Some(format!("{}", e));
+                                    }
                                 }
                             }
                         }
-                    }
-                    if ui
-                        .button(egui::RichText::new("Сбросить").size(11.0))
-                        .on_hover_text("Сбросить")
-                        .clicked()
-                    {
-                        self.editor_content.clear();
-                    }
-                });
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Автообновление");
-                let mut iv = self.app_config.update_interval;
-                egui::ComboBox::from_id_salt("editor_iv")
-                    .selected_text(iv.label_ru())
-                    .width(60.0)
-                    .show_ui(ui, |ui| {
-                        for v in UpdateInterval::all() {
-                            if ui.selectable_label(iv == *v, v.label_ru()).clicked() {
-                                iv = *v;
+                        if ui
+                            .add_sized(
+                                [72.0, 22.0],
+                                egui::Button::new(egui::RichText::new("Сбросить").size(11.0)),
+                            )
+                            .on_hover_text("Сбросить")
+                            .clicked()
+                        {
+                            self.editor_content.clear();
+                        }
+                        let open_btn =
+                            egui::Button::new(egui::RichText::new("Открыть ↗").size(11.0));
+                        if ui
+                            .add_sized([84.0, 22.0], open_btn)
+                            .on_hover_text("Открыть во внешнем редакторе")
+                            .clicked()
+                        {
+                            if let Some(name) = self.editor_name.clone() {
+                                let _ = rclash_db::open().and_then(|c| {
+                                    rclash_db::update_content(&c, &name, &self.editor_content)
+                                        .map_err(|e| anyhow::anyhow!("{}", e))
+                                });
                             }
+                            let tmp = std::env::temp_dir().join("rclash_tmp_edit.yaml");
+                            let _ = std::fs::write(&tmp, self.editor_content.as_bytes());
+                            let _ = open::that(&tmp);
+                        }
+                        let mut iv = self.app_config.update_interval;
+                        egui::ComboBox::from_id_salt("editor_iv_top")
+                            .selected_text(format!("{} ×", iv.label_ru()))
+                            .width(64.0)
+                            .show_ui(ui, |ui| {
+                                for v in UpdateInterval::all() {
+                                    if ui.selectable_label(iv == *v, v.label_ru()).clicked() {
+                                        iv = *v;
+                                    }
+                                }
+                            });
+                        if iv != self.app_config.update_interval {
+                            self.app_config.update_interval = iv;
+                            let _ = rclash_config::save_app_config(&self.app_config);
                         }
                     });
-                if iv != self.app_config.update_interval {
-                    self.app_config.update_interval = iv;
-                    let _ = rclash_config::save_app_config(&self.app_config);
-                }
-                let _ = ui
-                    .small_button(egui::RichText::new("?").size(9.0))
-                    .on_hover_text("Интервал автообновления подписок");
+                });
             });
             if let Some(e) = self.editor_error.clone() {
                 ui.colored_label(egui::Color32::from_rgb(220, 80, 80), e);
             }
-            egui::Frame::new()
+            ui.add_space(6.0);
+            let content_frame = egui::Frame::new()
+                .fill(card)
                 .stroke(egui::Stroke::new(1.0_f32, border))
-                .show(ui, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(&mut self.editor_content)
-                                .font(egui::TextStyle::Monospace)
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(18),
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(8));
+            content_frame.show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.editor_content)
+                            .font(egui::TextStyle::Monospace)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(22)
+                            .hint_text("YAML..."),
+                    );
+                });
+            });
+        });
+    }
+
+    fn show_logs(&mut self, ctx: &egui::Context) {
+        let border = self.border();
+        let card = card_fill_for(self.app_config.theme);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.add_space(6.0);
+            let top_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(6));
+            top_frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_sized(
+                            [36.0, 22.0],
+                            egui::Button::new(egui::RichText::new("<").size(13.0).strong()),
+                        )
+                        .on_hover_text("Назад")
+                        .clicked()
+                    {
+                        self.overlay = Overlay::None;
+                    }
+                    ui.label(egui::RichText::new("Логи").strong().size(13.0));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_sized(
+                                [68.0, 22.0],
+                                egui::Button::new(egui::RichText::new("Очистить").size(11.0)),
+                            )
+                            .on_hover_text("Очистить")
+                            .clicked()
+                        {
+                            self.logs_buf.clear();
+                        }
+                        let mut auto = self.logs_autoscroll;
+                        if ui
+                            .checkbox(&mut auto, "Авто")
+                            .on_hover_text("Автопрокрутка")
+                            .changed()
+                        {
+                            self.logs_autoscroll = auto;
+                        }
+                        if ui
+                            .add_sized(
+                                [72.0, 22.0],
+                                egui::Button::new(egui::RichText::new("Копировать").size(11.0)),
+                            )
+                            .on_hover_text("Копировать")
+                            .clicked()
+                        {
+                            let txt = self
+                                .logs_buf
+                                .iter()
+                                .map(|e| format!("{} {}", e.level, e.payload))
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            ui.ctx().copy_text(txt);
+                        }
+                        if ui
+                            .add_sized(
+                                [64.0, 22.0],
+                                egui::Button::new(egui::RichText::new("Экспорт").size(11.0)),
+                            )
+                            .on_hover_text("Экспорт в файл")
+                            .clicked()
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_file_name("rclash_logs.txt")
+                                .save_file()
+                            {
+                                let txt = self
+                                    .logs_buf
+                                    .iter()
+                                    .map(|e| format!("{} {}", e.level, e.payload))
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                let _ = std::fs::write(path, txt);
+                            }
+                        }
+                        egui::ComboBox::from_id_salt("logs_sort_top")
+                            .selected_text(format!("сортировка > {}", self.logs_level))
+                            .width(110.0)
+                            .show_ui(ui, |ui| {
+                                for lv in ["debug", "info", "warning", "error", "silent"] {
+                                    if ui.selectable_label(self.logs_level == lv, lv).clicked() {
+                                        self.logs_level = lv.to_owned();
+                                        self.restart_logs_stream();
+                                    }
+                                }
+                            });
+                    });
+                });
+            });
+            ui.add_space(4.0);
+            let filter_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(6));
+            filter_frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("Фильтр:").weak().small());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.logs_filter)
+                            .hint_text("Фильтр...")
+                            .desired_width(160.0),
+                    );
+                    ui.separator();
+                    let mut tab = self.logs_tab;
+                    egui::ComboBox::from_id_salt("logs_tab2")
+                        .selected_text(tab.label_ru())
+                        .width(90.0)
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_label(tab == LogsTab::Core, "Ядро").clicked() {
+                                tab = LogsTab::Core;
+                            }
+                            if ui
+                                .selectable_label(tab == LogsTab::App, "Приложение")
+                                .clicked()
+                            {
+                                tab = LogsTab::App;
+                            }
+                        });
+                    self.logs_tab = tab;
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{} записей", self.logs_buf.len()))
+                                .weak()
+                                .small(),
                         );
                     });
                 });
-        });
-    }
-    fn show_logs(&mut self, ctx: &egui::Context) {
-        let border = self.border();
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .button(egui::RichText::new("< Назад").size(11.0))
-                    .on_hover_text("Назад")
-                    .clicked()
-                {
-                    self.overlay = Overlay::None;
-                }
-                ui.label(egui::RichText::new("Логи").strong().size(13.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .button(egui::RichText::new("⌫").size(11.0))
-                        .on_hover_text("Очистить")
-                        .clicked()
-                    {
-                        self.logs_buf.clear();
-                    }
-                    let mut auto = self.logs_autoscroll;
-                    if ui
-                        .checkbox(&mut auto, "Автоскролл")
-                        .on_hover_text("Автопрокрутка")
-                        .changed()
-                    {
-                        self.logs_autoscroll = auto;
-                    }
-                    if ui
-                        .button(egui::RichText::new("⎘").size(11.0))
-                        .on_hover_text("Копировать")
-                        .clicked()
-                    {
-                        let txt = self
-                            .logs_buf
-                            .iter()
-                            .map(|e| format!("{} {}", e.level, e.payload))
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        ui.ctx().copy_text(txt);
-                    }
-                });
             });
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Уровень");
-                egui::ComboBox::from_id_salt("logs_level")
-                    .selected_text(self.logs_level.clone())
-                    .width(80.0)
-                    .show_ui(ui, |ui| {
-                        for lv in ["debug", "info", "warning", "error", "silent"] {
-                            if ui.selectable_label(self.logs_level == lv, lv).clicked() {
-                                self.logs_level = lv.to_owned();
-                                self.restart_logs_stream();
-                            }
-                        }
-                    });
-                let _ = ui
-                    .small_button(egui::RichText::new("?").size(9.0))
-                    .on_hover_text("Уровень логов ядра mihomo");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.logs_filter)
-                        .hint_text("Фильтр...")
-                        .desired_width(120.0),
-                );
-                let mut tab = self.logs_tab;
-                egui::ComboBox::from_id_salt("logs_tab")
-                    .selected_text(tab.label_ru())
-                    .width(80.0)
-                    .show_ui(ui, |ui| {
-                        if ui.selectable_label(tab == LogsTab::Core, "Ядро").clicked() {
-                            tab = LogsTab::Core;
-                        }
-                        if ui
-                            .selectable_label(tab == LogsTab::App, "Приложение")
-                            .clicked()
-                        {
-                            tab = LogsTab::App;
-                        }
-                    });
-                self.logs_tab = tab;
-            });
-            ui.add_space(4.0);
-            egui::Frame::new()
+            ui.add_space(6.0);
+            let content_frame = egui::Frame::new()
+                .fill(card)
                 .stroke(egui::Stroke::new(1.0_f32, border))
-                .show(ui, |ui| {
-                    egui::ScrollArea::vertical()
-                        .stick_to_bottom(self.logs_autoscroll)
-                        .max_height(420.0)
-                        .show(ui, |ui| {
-                            if self.logs_buf.is_empty() {
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(8));
+            content_frame.show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .stick_to_bottom(self.logs_autoscroll)
+                    .max_height(460.0)
+                    .show(ui, |ui| {
+                        if self.logs_buf.is_empty() {
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(40.0);
                                 ui.label(egui::RichText::new("Логов пока нет").weak());
-                                return;
-                            }
-                            for e in self.logs_buf.iter().filter(|e| {
-                                self.logs_filter.is_empty()
-                                    || e.payload
-                                        .to_lowercase()
-                                        .contains(&self.logs_filter.to_lowercase())
-                            }) {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new(&e.level).small().monospace().weak(),
-                                    );
-                                    ui.label(egui::RichText::new(&e.payload).small());
-                                });
-                            }
-                        });
-                });
+                            });
+                            return;
+                        }
+                        for e in self.logs_buf.iter().filter(|e| {
+                            self.logs_filter.is_empty()
+                                || e.payload
+                                    .to_lowercase()
+                                    .contains(&self.logs_filter.to_lowercase())
+                        }) {
+                            let col = match e.level.as_str() {
+                                "debug" => egui::Color32::from_gray(160),
+                                "info" => egui::Color32::from_rgb(120, 180, 120),
+                                "warning" => egui::Color32::from_rgb(200, 180, 60),
+                                "error" => egui::Color32::from_rgb(220, 80, 80),
+                                _ => egui::Color32::from_gray(120),
+                            };
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(&e.level).small().monospace().color(col),
+                                );
+                                ui.label(egui::RichText::new(&e.payload).small());
+                            });
+                        }
+                    });
+            });
         });
     }
+
     fn show_settings(&mut self, ctx: &egui::Context) {
+        let border = self.border();
+        let card = card_fill_for(self.app_config.theme);
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .button(egui::RichText::new("< Назад").size(11.0))
-                    .on_hover_text("Назад")
-                    .clicked()
-                {
-                    self.overlay = Overlay::None;
-                }
-                ui.label(egui::RichText::new("Настройки").strong().size(13.0));
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                for (i, label) in [(0, "Приложение"), (1, "Ядро"), (2, "DNS"), (3, "Сеть")].iter()
-                {
-                    let sel = self.settings_tab == *i;
-                    if ui.selectable_label(sel, *label).clicked() {
-                        self.settings_tab = *i;
+            ui.add_space(6.0);
+            let top_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(6));
+            top_frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_sized(
+                            [36.0, 22.0],
+                            egui::Button::new(egui::RichText::new("<").size(13.0).strong()),
+                        )
+                        .on_hover_text("Назад")
+                        .clicked()
+                    {
+                        self.overlay = Overlay::None;
                     }
-                }
+                    ui.label(egui::RichText::new("Настройки").strong().size(13.0));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let tabs = [(0, "приложение"), (1, "ядро"), (2, "dns"), (3, "сеть")];
+                        for (i, label) in tabs.iter().rev() {
+                            let sel = self.settings_tab == *i;
+                            let mut btn = egui::Button::new(egui::RichText::new(*label).size(11.0));
+                            if sel {
+                                btn = btn
+                                    .fill(NEKO_ACCENT)
+                                    .stroke(egui::Stroke::new(1.0_f32, NEKO_ACCENT));
+                            }
+                            if ui.add_sized([84.0, 22.0], btn).clicked() {
+                                self.settings_tab = *i;
+                            }
+                        }
+                    });
+                });
             });
-            ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| match self.settings_tab {
-                0 => self.settings_app(ui),
-                1 => self.settings_core(ui),
-                2 => self.settings_dns(ui),
-                3 => self.settings_network(ui),
-                _ => {}
+            ui.add_space(6.0);
+            let content_frame = egui::Frame::new()
+                .fill(card)
+                .stroke(egui::Stroke::new(1.0_f32, border))
+                .corner_radius(egui::CornerRadius::same(R6))
+                .inner_margin(egui::Margin::same(8));
+            content_frame.show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| match self.settings_tab {
+                    0 => self.settings_app(ui),
+                    1 => self.settings_core(ui),
+                    2 => self.settings_dns(ui),
+                    3 => self.settings_network(ui),
+                    _ => {}
+                });
             });
+            let _ = ctx;
         });
     }
+
     fn settings_row(
         ui: &mut egui::Ui,
         title: &str,
@@ -2289,6 +2701,54 @@ impl RClashApp {
     }
 }
 
+fn flag_for_proxy(name: &str) -> String {
+    let lower = name.to_lowercase();
+    let map: &[(&str, &str)] = &[
+        ("germany", "🇩🇪"),
+        ("german", "🇩🇪"),
+        ("poland", "🇵🇱"),
+        ("polish", "🇵🇱"),
+        ("sweden", "🇸🇪"),
+        ("swedish", "🇸🇪"),
+        ("russia", "🇷🇺"),
+        ("russian", "🇷🇺"),
+        ("france", "🇫🇷"),
+        ("french", "🇫🇷"),
+        ("netherlands", "🇳🇱"),
+        ("holland", "🇳🇱"),
+        ("usa", "🇺🇸"),
+        ("america", "🇺🇸"),
+        ("us-", "🇺🇸"),
+        ("uk", "🇬🇧"),
+        ("britain", "🇬🇧"),
+        ("singapore", "🇸🇬"),
+        ("japan", "🇯🇵"),
+        ("korea", "🇰🇷"),
+        ("hongkong", "🇭🇰"),
+        ("taiwan", "🇹🇼"),
+        ("canada", "🇨🇦"),
+        ("turkey", "🇹🇷"),
+        ("finland", "🇫🇮"),
+        ("norway", "🇳🇴"),
+        ("italy", "🇮🇹"),
+        ("spain", "🇪🇸"),
+        ("brazil", "🇧🇷"),
+        ("australia", "🇦🇺"),
+        ("india", "🇮🇳"),
+        ("de-", "🇩🇪"),
+        ("pl-", "🇵🇱"),
+        ("se-", "🇸🇪"),
+        ("ru-", "🇷🇺"),
+        ("fr-", "🇫🇷"),
+        ("nl-", "🇳🇱"),
+    ];
+    for (k, f) in map {
+        if lower.contains(k) {
+            return (*f).to_owned();
+        }
+    }
+    "🌐".to_owned()
+}
 fn truncate(s: &str, n: usize) -> String {
     if s.len() <= n {
         s.to_owned()
