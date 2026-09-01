@@ -1,35 +1,27 @@
-# RClash
+# RClash — desktop
 
-Desktop proxy client, 100% mihomo compatible. GUI Rust egui (eframe 0.32), core fork `RClash/mihomo` (Go sidecar `rclash-core`).
+Filesystem container (not a git repo). Each subfolder is its own git repo (fallback `gz0ni/*`, target `RClash/*`).
+
+```
+RClash/
+├─ app/            # desktop — Rust eframe 0.32, https://github.com/gz0ni/rclash
+├─ core/           # core fork — Go, https://github.com/gz0ni/mihomo (branch rclash)
+└─ (android removed — desktop only)
+```
+
+See `app/docs/ORG_SETUP.md` for transfer to `RClash` org.
 
 ## Quick start
 
 ```bash
-cargo run
-cargo build --release
+# desktop
+cargo run --manifest-path app/Cargo.toml
+
+# core (in core/)
+go build -C core -o ../app/target/debug/rclash-core -ldflags "-X github.com/metacubex/mihomo/constant.Version=v0.1.0-rclash -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
 ```
-
-## Packaging
-
-- Windows: `iscc packaging/inno/RClash.iss` → `dist/setup-RClash-*.exe` (Inno Setup 6)
-- Linux: `cargo deb`, `cargo generate-rpm`, `bash packaging/appimage/build.sh`
-- macOS: `bash packaging/dmg/build.sh aarch64-apple-darwin`
-
-## Core
-
-Fork `MetaCubeX/mihomo` as `RClash/mihomo`. Patch only via ldflags:
-
-```
--X github.com/metacubex/mihomo/constant.Version=v0.1.0-rclash
--X github.com/metacubex/mihomo/constant.MihomoName=RClash
--X github.com/metacubex/mihomo/constant.BuildTime=...
-```
-
-Binary name `rclash-core` gives process name. Sync via `sync.yml` cron `0 2 * * *`.
-
-Workflows for the fork are in `mihomo-workflows/` — copy to `RClash/mihomo/.github/workflows/`.
 
 ## CI
 
-- `ci.yml` — fmt, clippy, test, build 5 triples on push/PR
-- `release.yml` — on tag `v*` builds + packages EXE/DEB/RPM/AppImage/DMG
+- `.github/workflows/ci.yml` + `release.yml` → EXE/DEB/RPM/AppImage/DMG (5 desktop triples)
+- `core/.github/workflows/build-core.yml` + `sync.yml` → rclash-core-* + manifest.json

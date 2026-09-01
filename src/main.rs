@@ -1,7 +1,6 @@
 mod app;
 mod logger;
 mod tray;
-mod ui;
 
 use app::RClashApp;
 
@@ -16,8 +15,10 @@ fn main() -> eframe::Result<()> {
     let tray_handle = tray::init_tray();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1100.0, 700.0])
-            .with_min_inner_size([900.0, 600.0])
+            .with_inner_size([860.0, 620.0])
+            .with_min_inner_size([860.0, 620.0])
+            .with_max_inner_size([860.0, 620.0])
+            .with_resizable(false)
             .with_visible(!minimized),
         ..Default::default()
     };

@@ -4,8 +4,10 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIST="$ROOT/dist"
 APPDIR="$ROOT/packaging/appimage/RClash.AppDir"
 BIN="$ROOT/target/x86_64-unknown-linux-gnu/release/rclash"
+CORE="$ROOT/target/x86_64-unknown-linux-gnu/release/rclash-core"
 mkdir -p "$DIST" "$APPDIR/usr/bin"
 cp "$BIN" "$APPDIR/usr/bin/rclash" 2>/dev/null || cp "$ROOT/target/release/rclash" "$APPDIR/usr/bin/rclash" || { echo "binary not found"; exit 0; }
+cp "$CORE" "$APPDIR/usr/bin/rclash-core" 2>/dev/null || cp "$ROOT/target/release/rclash-core" "$APPDIR/usr/bin/rclash-core" 2>/dev/null || echo "core not bundled — skip"
 cat > "$APPDIR/RClash.desktop" <<'EOF'
 [Desktop Entry]
 Name=RClash

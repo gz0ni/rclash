@@ -30,6 +30,8 @@ rclash-sys-proxy = { path = "crates/rclash-sys-proxy" }
 rclash-autostart = { path = "crates/rclash-autostart" }
 rclash-tun = { path = "crates/rclash-tun" }
 rclash-updater = { path = "crates/rclash-updater" }
+rclash-db = { path = "crates/rclash-db" }
+open = "5.3"
 
 [profile.release]
 lto = true
@@ -38,4 +40,4 @@ panic = "abort"
 strip = true
 
 [workspace]
-members = ["crates/rclash-config", "crates/rclash-core-manager", "crates/rclash-subscription", "crates/rclash-sys-proxy", "crates/rclash-autostart", "crates/rclash-tun", "crates/rclash-tun-helper", "crates/rclash-updater"]
+members = ["crates/rclash-config", "crates/rclash-core-manager", "crates/rclash-subscription", "crates/rclash-sys-proxy", "crates/rclash-autostart", "crates/rclash-tun", "crates/rclash-tun-helper", "crates/rclash-updater", "crates/rclash-db"]

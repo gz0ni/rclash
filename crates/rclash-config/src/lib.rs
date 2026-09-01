@@ -25,6 +25,20 @@ pub enum Theme {
     Light,
     #[default]
     Dark,
+    Oled,
+}
+
+impl Theme {
+    pub fn label_ru(&self) -> &'static str {
+        match self {
+            Self::Light => "Светлая",
+            Self::Dark => "Тёмная",
+            Self::Oled => "OLED",
+        }
+    }
+    pub fn all() -> &'static [Self] {
+        &[Self::Light, Self::Dark, Self::Oled]
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -191,6 +205,28 @@ pub struct AppConfig {
     pub log_level: LogLevel,
     #[serde(default)]
     pub tun_enabled: bool,
+    #[serde(default = "default_true")]
+    pub show_traffic_graph: bool,
+    #[serde(default)]
+    pub mixed_port: Option<u16>,
+    #[serde(default)]
+    pub socks_port: Option<u16>,
+    #[serde(default)]
+    pub external_controller: Option<String>,
+    #[serde(default)]
+    pub allow_lan: Option<bool>,
+    #[serde(default)]
+    pub ipv6: Option<bool>,
+    #[serde(default)]
+    pub unified_delay: Option<bool>,
+    #[serde(default)]
+    pub tcp_concurrent: Option<bool>,
+    #[serde(default)]
+    pub keep_alive_interval: Option<u32>,
+    #[serde(default)]
+    pub geodata_loader: Option<String>,
+    #[serde(default)]
+    pub find_process_mode: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -207,6 +243,17 @@ impl Default for AppConfig {
             update_interval: UpdateInterval::H24,
             log_level: LogLevel::Info,
             tun_enabled: false,
+            show_traffic_graph: true,
+            mixed_port: None,
+            socks_port: None,
+            external_controller: None,
+            allow_lan: None,
+            ipv6: None,
+            unified_delay: None,
+            tcp_concurrent: None,
+            keep_alive_interval: None,
+            geodata_loader: None,
+            find_process_mode: None,
         }
     }
 }
@@ -268,6 +315,17 @@ mod tests {
             update_interval: UpdateInterval::H12,
             log_level: LogLevel::Debug,
             tun_enabled: true,
+            show_traffic_graph: false,
+            mixed_port: Some(7890),
+            socks_port: None,
+            external_controller: None,
+            allow_lan: None,
+            ipv6: None,
+            unified_delay: None,
+            tcp_concurrent: None,
+            keep_alive_interval: None,
+            geodata_loader: None,
+            find_process_mode: None,
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: AppConfig = serde_json::from_str(&s).unwrap();
@@ -277,6 +335,7 @@ mod tests {
         assert_eq!(back.update_interval, UpdateInterval::H12);
         assert_eq!(back.log_level, LogLevel::Debug);
         assert!(back.tun_enabled);
+        assert!(!back.show_traffic_graph);
     }
 
     #[test]

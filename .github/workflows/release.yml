@@ -15,14 +15,29 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            goos: windows
+            goarch: amd64
+            ext: .exe
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            goos: linux
+            goarch: amd64
+            ext: ""
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
+            goos: linux
+            goarch: arm64
+            ext: ""
           - os: macos-14
             target: x86_64-apple-darwin
+            goos: darwin
+            goarch: amd64
+            ext: ""
           - os: macos-latest
             target: aarch64-apple-darwin
+            goos: darwin
+            goarch: arm64
+            ext: ""
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,10 +47,30 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: core/go.mod
       - uses: Swatinem/rust-cache@v2
       - name: Install cross for aarch64 linux
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Build rclash-core (bundled)
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="${GITHUB_REF_NAME:-v0.1.0-rclash}"
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Building rclash-core $VERSION $GOOS/$GOARCH"
+          go build -C core -trimpath -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=${VERSION} -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=${BUILD_TIME}" -o "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
+          ls -lh ../rclash-core-* || ls -lh rclash-core-* || true
+          mkdir -p target/${{ matrix.target }}/release
+          cp ../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }} 2>/dev/null || cp rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }} || true
+          ls -lh target/${{ matrix.target }}/release/rclash* || true
+        shell: bash
       - name: Build release
         run: |
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
@@ -43,6 +78,10 @@ jobs:
           else
             cargo build --release --target ${{ matrix.target }}
           fi
+          # re-ensure core is beside binary after cargo build (cargo may clean)
+          if [ -f "rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ]; then cp "rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }}" || true; fi
+          if [ -f "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ]; then cp "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }}" || true; fi
+          ls -lh target/${{ matrix.target }}/release/ || true
         shell: bash
       - name: Package Windows EXE (Inno Setup)
         if: matrix.os == 'windows-latest'
@@ -120,11 +159,23 @@ jobs:
           fi
           codesign --verify --verbose target/${{ matrix.target }}/release/rclash || true
         shell: bash
+      - name: Create portable (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p release-artifacts
+          PORTABLE="RClash-${GITHUB_REF_NAME:-v0.1.0}-portable-windows-x64.zip"
+          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then
+            powershell -Command "Compress-Archive -Path 'target/${{ matrix.target }}/release/rclash.exe','target/${{ matrix.target }}/release/rclash-core.exe' -DestinationPath \"release-artifacts/$PORTABLE\" -Force" || echo "portable zip failed"
+          fi
+          ls -lh release-artifacts/ || true
+        shell: bash
       - name: Prepare release artifacts with unique names
         run: |
           mkdir -p release-artifacts
           if [ -f target/${{ matrix.target }}/release/rclash ]; then cp target/${{ matrix.target }}/release/rclash release-artifacts/rclash-${{ matrix.target }}; fi
           if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then cp target/${{ matrix.target }}/release/rclash.exe release-artifacts/rclash-${{ matrix.target }}.exe; fi
+          if [ -f target/${{ matrix.target }}/release/rclash-core ]; then cp target/${{ matrix.target }}/release/rclash-core release-artifacts/rclash-core-${{ matrix.target }}; fi
+          if [ -f target/${{ matrix.target }}/release/rclash-core.exe ]; then cp target/${{ matrix.target }}/release/rclash-core.exe release-artifacts/rclash-core-${{ matrix.target }}.exe; fi
           if ls dist/*.dmg 1>/dev/null 2>&1; then cp dist/*.dmg release-artifacts/ 2>/dev/null || true; fi
           if ls dist/*.exe 1>/dev/null 2>&1; then cp dist/*.exe release-artifacts/ 2>/dev/null || true; fi
           if ls dist/*.deb 1>/dev/null 2>&1; then cp dist/*.deb release-artifacts/ 2>/dev/null || true; fi

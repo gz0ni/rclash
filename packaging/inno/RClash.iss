@@ -31,7 +31,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\..\target\x86_64-pc-windows-msvc\release\rclash.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\target\x86_64-pc-windows-msvc\release\rclash-core*"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\..\target\x86_64-pc-windows-msvc\release\rclash-core.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\target\x86_64-pc-windows-msvc\release\wintun.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

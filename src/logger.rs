@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::collections::VecDeque;
 use std::fs::{File, OpenOptions};
 use std::io::Write;

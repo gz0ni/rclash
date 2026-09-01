@@ -5,9 +5,11 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIST="$ROOT/dist"
 mkdir -p "$DIST"
 BIN="$ROOT/target/$TARGET/release/rclash"
+CORE="$ROOT/target/$TARGET/release/rclash-core"
 APP="$DIST/RClash.app"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/RClash" 2>/dev/null || cp "$ROOT/target/release/rclash" "$APP/Contents/MacOS/RClash" || { echo "binary not found, skip dmg"; exit 0; }
+cp "$CORE" "$APP/Contents/MacOS/rclash-core" 2>/dev/null || cp "$ROOT/target/release/rclash-core" "$APP/Contents/MacOS/rclash-core" 2>/dev/null || echo "core not bundled — dmg without core"
 cat > "$APP/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
