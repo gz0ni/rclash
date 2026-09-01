@@ -42,16 +42,15 @@ jobs:
         with:
           workflow: CI
           run_id: ${{ github.event.workflow_run.id }}
-          name: rclash-*
+          pattern: rclash-*
           path: artifacts
-          merge-multiple: true
-          if_no_artifact_found: error
+          merge_multiple: true
 
       - name: List artifacts
         run: |
           echo "Tag: ${{ steps.tag.outputs.tag }}"
           ls -R artifacts || true
-          find artifacts -type f | head -n 100
+          find artifacts -type f 2>/dev/null | head -n 100 || true
         shell: bash
 
       - name: Publish release
