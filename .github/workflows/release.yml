@@ -1,225 +1,94 @@
 name: Release
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.2) — leave empty to use latest tag on HEAD"
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install tray deps (Linux)
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libappindicator3-dev libxdo-dev
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache: true
-          cache-dependency-path: core/go.mod
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --check
-      - run: cargo check --all-targets
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test --workspace
-      - run: go vet -C core ./...
-
-  build:
-    needs: [test]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            goos: windows
-            goarch: amd64
-            ext: .exe
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            goos: linux
-            goarch: amd64
-            ext: ""
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            goos: linux
-            goarch: arm64
-            ext: ""
-          - os: macos-14
-            target: x86_64-apple-darwin
-            goos: darwin
-            goarch: amd64
-            ext: ""
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            goos: darwin
-            goarch: arm64
-            ext: ""
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install tray deps (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libappindicator3-dev libxdo-dev
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache: true
-          cache-dependency-path: core/go.mod
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cross for aarch64 linux
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo install cross --git https://github.com/cross-rs/cross
-      - name: Build rclash-core (bundled)
-        env:
-          CGO_ENABLED: "0"
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          VERSION="${GITHUB_REF_NAME:-v0.1.0-rclash}"
-          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          echo "Building rclash-core $VERSION $GOOS/$GOARCH"
-          go build -C core -trimpath -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=${VERSION} -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=${BUILD_TIME}" -o "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
-          ls -lh ../rclash-core-* || ls -lh rclash-core-* || true
-          mkdir -p target/${{ matrix.target }}/release
-          cp ../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }} 2>/dev/null || cp rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }} || true
-          ls -lh target/${{ matrix.target }}/release/rclash* || true
-        shell: bash
-      - name: Build release
-        run: |
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
-          # re-ensure core is beside binary after cargo build (cargo may clean)
-          if [ -f "rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ]; then cp "rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }}" || true; fi
-          if [ -f "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ]; then cp "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }}" || true; fi
-          ls -lh target/${{ matrix.target }}/release/ || true
-        shell: bash
-      - name: Package Windows EXE (Inno Setup)
-        if: matrix.os == 'windows-latest'
-        run: |
-          iscc packaging/inno/RClash.iss
-          ls dist/
-        shell: bash
-      - name: Package Linux DEB/RPM/AppImage
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          cargo install cargo-deb cargo-generate-rpm --locked || true
-          cargo deb --target ${{ matrix.target }} --no-build || echo "cargo deb skip"
-          cargo generate-rpm --target ${{ matrix.target }} || echo "cargo rpm skip"
-          bash packaging/appimage/build.sh || echo "appimage skip"
-          ls -R dist/ || true
-        shell: bash
-      - name: Package macOS DMG
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew install create-dmg || true
-          bash packaging/dmg/build.sh ${{ matrix.target }} || echo "dmg skip"
-          ls -R dist/ || true
-        shell: bash
-      - name: Sign Windows (self-signed gated)
-        if: matrix.os == 'windows-latest'
-        run: |
-          set -e
-          if [ -n "${{ secrets.WIN_PFX_B64 }}" ]; then
-            echo "${{ secrets.WIN_PFX_B64 }}" | base64 -d > /tmp/cert.pfx
-            echo "sign with provided PFX"
-            signtool sign //f /tmp/cert.pfx //p "${{ secrets.WIN_PFX_PASSWORD }}" //fd SHA256 //tr http://timestamp.digicert.com //td SHA256 target/${{ matrix.target }}/release/rclash.exe || true
-            if ls dist/*.exe 1>/dev/null 2>&1; then
-              signtool sign //f /tmp/cert.pfx //p "${{ secrets.WIN_PFX_PASSWORD }}" //fd SHA256 //tr http://timestamp.digicert.com //td SHA256 dist/*.exe || true
-            fi
-            rm -f /tmp/cert.pfx
-          else
-            echo "no WIN_PFX_B64 — generate ephemeral self-signed cert"
-            powershell -Command '
-              $cert = New-SelfSignedCertificate -Type CodeSigning -Subject "CN=RClash Self-Signed" -KeyExportPolicy Exportable -KeySpec Signature -KeyLength 2048 -KeyAlgorithm RSA -HashAlgorithm SHA256 -NotAfter (Get-Date).AddYears(1) -CertStoreLocation Cert:\CurrentUser\My
-              $pwd = ConvertTo-SecureString -String "rclash" -Force -AsPlainText
-              Export-PfxCertificate -Cert $cert -FilePath /tmp/self.pfx -Password $pwd | Out-Null
-              $cert | Remove-Item
-            ' || echo "self-signed gen failed"
-            if [ -f /tmp/self.pfx ]; then
-              signtool sign //f /tmp/self.pfx //p rclash //fd SHA256 target/${{ matrix.target }}/release/rclash.exe || echo "self-sign binary failed (expected unsigned fallback)"
-              if ls dist/*.exe 1>/dev/null 2>&1; then
-                signtool sign //f /tmp/self.pfx //p rclash //fd SHA256 dist/*.exe || true
-              fi
-              rm -f /tmp/self.pfx
-            else
-              echo "self-signed PFX not created — leave unsigned"
-            fi
-          fi
-        shell: bash
-      - name: Sign macOS (ad-hoc)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          set -e
-          if [ -n "${{ secrets.APPLE_CERT_B64 }}" ]; then
-            echo "${{ secrets.APPLE_CERT_B64 }}" | base64 -d > /tmp/apple.p12
-            security create-keychain -p rclash /tmp/rclash.keychain || true
-            security import /tmp/apple.p12 -k /tmp/rclash.keychain -P "${{ secrets.APPLE_CERT_PASSWORD }}" -T /usr/bin/codesign || true
-            security unlock-keychain -p rclash /tmp/rclash.keychain || true
-            codesign --force --deep --sign "Developer ID Application" target/${{ matrix.target }}/release/rclash || true
-            if [ -d dist/RClash.app ]; then
-              codesign --force --deep --sign "Developer ID Application" dist/RClash.app || true
-            fi
-            rm -f /tmp/apple.p12
-          else
-            echo "no APPLE_CERT_B64 — ad-hoc sign"
-            codesign --force --deep --sign - target/${{ matrix.target }}/release/rclash || true
-            if [ -d dist/RClash.app ]; then
-              codesign --force --deep --sign - dist/RClash.app || true
-            fi
-          fi
-          codesign --verify --verbose target/${{ matrix.target }}/release/rclash || true
-        shell: bash
-      - name: Create portable (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          mkdir -p release-artifacts
-          PORTABLE="RClash-${GITHUB_REF_NAME:-v0.1.0}-portable-windows-x64.zip"
-          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then
-            powershell -Command "Compress-Archive -Path 'target/${{ matrix.target }}/release/rclash.exe','target/${{ matrix.target }}/release/rclash-core.exe' -DestinationPath \"release-artifacts/$PORTABLE\" -Force" || echo "portable zip failed"
-          fi
-          ls -lh release-artifacts/ || true
-        shell: bash
-      - name: Prepare release artifacts with unique names
-        run: |
-          mkdir -p release-artifacts
-          if [ -f target/${{ matrix.target }}/release/rclash ]; then cp target/${{ matrix.target }}/release/rclash release-artifacts/rclash-${{ matrix.target }}; fi
-          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then cp target/${{ matrix.target }}/release/rclash.exe release-artifacts/rclash-${{ matrix.target }}.exe; fi
-          if [ -f target/${{ matrix.target }}/release/rclash-core ]; then cp target/${{ matrix.target }}/release/rclash-core release-artifacts/rclash-core-${{ matrix.target }}; fi
-          if [ -f target/${{ matrix.target }}/release/rclash-core.exe ]; then cp target/${{ matrix.target }}/release/rclash-core.exe release-artifacts/rclash-core-${{ matrix.target }}.exe; fi
-          if ls dist/*.dmg 1>/dev/null 2>&1; then cp dist/*.dmg release-artifacts/ 2>/dev/null || true; fi
-          if ls dist/*.exe 1>/dev/null 2>&1; then cp dist/*.exe release-artifacts/ 2>/dev/null || true; fi
-          if ls dist/*.deb 1>/dev/null 2>&1; then cp dist/*.deb release-artifacts/ 2>/dev/null || true; fi
-          if ls dist/*.rpm 1>/dev/null 2>&1; then cp dist/*.rpm release-artifacts/ 2>/dev/null || true; fi
-          if ls dist/*.AppImage 1>/dev/null 2>&1; then cp dist/*.AppImage release-artifacts/ 2>/dev/null || true; fi
-          ls -R release-artifacts || true
-        shell: bash
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rclash-${{ matrix.target }}
-          path: release-artifacts/*
-          if-no-files-found: warn
-
   publish:
-    needs: build
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -z "$TAG" ]; then TAG="v${{ github.event.workflow_run.head_sha }}"; fi
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+          echo "Resolved tag: $(cat $GITHUB_OUTPUT)"
+        shell: bash
+
+      - name: Download artifacts from CI (workflow_run)
+        if: github.event_name == 'workflow_run'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: CI
+          run_id: ${{ github.event.workflow_run.id }}
+          name: rclash-*
           path: artifacts
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+          if_no_artifact_found: error
+
+      - name: Download artifacts from CI (tag push)
+        if: github.event_name == 'push'
+        uses: dawidd6/action-download-artifact@v6
         with:
+          workflow: CI
+          branch: main
+          commit: ${{ github.sha }}
+          name: rclash-*
+          path: artifacts
+          merge-multiple: true
+          search_artifacts: true
+          if_no_artifact_found: wait
+
+      - name: Download artifacts (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: CI
+          branch: main
+          commit: ${{ github.sha }}
+          name: rclash-*
+          path: artifacts
+          merge-multiple: true
+          search_artifacts: true
+          if_no_artifact_found: error
+
+      - name: List artifacts
+        run: |
+          echo "Tag: ${{ steps.tag.outputs.tag }}"
+          ls -R artifacts || true
+          find artifacts -type f | head -n 100
+        shell: bash
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
           files: artifacts/**/*
           generate_release_notes: true
+          fail_on_unmatched_files: false

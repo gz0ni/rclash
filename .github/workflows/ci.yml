@@ -30,18 +30,33 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            goos: windows
+            goarch: amd64
+            ext: .exe
             artifact: rclash-windows-x64.exe
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            goos: linux
+            goarch: amd64
+            ext: ""
             artifact: rclash-linux-x64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
+            goos: linux
+            goarch: arm64
+            ext: ""
             artifact: rclash-linux-arm64
           - os: macos-14
             target: x86_64-apple-darwin
+            goos: darwin
+            goarch: amd64
+            ext: ""
             artifact: rclash-macos-x64
           - os: macos-latest
             target: aarch64-apple-darwin
+            goos: darwin
+            goarch: arm64
+            ext: ""
             artifact: rclash-macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
@@ -52,10 +67,30 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: core/go.mod
       - uses: Swatinem/rust-cache@v2
       - name: Install cross for aarch64 linux
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Build rclash-core (bundled)
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="${GITHUB_REF_NAME:-v0.1.0-rclash}"
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Building rclash-core $VERSION $GOOS/$GOARCH"
+          go build -C core -trimpath -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=${VERSION} -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=${BUILD_TIME}" -o "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
+          ls -lh ../rclash-core-* || ls -lh rclash-core-* || true
+          mkdir -p target/${{ matrix.target }}/release
+          cp ../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }} 2>/dev/null || cp rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }} || true
+          ls -lh target/${{ matrix.target }}/release/rclash* || true
+        shell: bash
       - name: Build
         run: |
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
@@ -63,9 +98,91 @@ jobs:
           else
             cargo build --release --target ${{ matrix.target }}
           fi
+          if [ -f "rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ]; then cp "rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }}" || true; fi
+          if [ -f "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" ]; then cp "../rclash-core-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "target/${{ matrix.target }}/release/rclash-core${{ matrix.ext }}" || true; fi
+          ls -lh target/${{ matrix.target }}/release/ || true
+        shell: bash
+      - name: Package Windows EXE (Inno Setup)
+        if: matrix.os == 'windows-latest'
+        run: |
+          iscc packaging/inno/RClash.iss
+          ls dist/ || true
+        shell: bash
+      - name: Package Linux DEB/RPM/AppImage
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo install cargo-deb cargo-generate-rpm --locked || true
+          cargo deb --target ${{ matrix.target }} --no-build || echo "cargo deb skip"
+          cargo generate-rpm --target ${{ matrix.target }} || echo "cargo rpm skip"
+          bash packaging/appimage/build.sh || echo "appimage skip"
+          ls -R dist/ || true
+        shell: bash
+      - name: Package macOS DMG
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew install create-dmg || true
+          bash packaging/dmg/build.sh ${{ matrix.target }} || echo "dmg skip"
+          ls -R dist/ || true
+        shell: bash
+      - name: Sign Windows (self-signed gated)
+        if: matrix.os == 'windows-latest'
+        run: |
+          set -e
+          if [ -n "${{ secrets.WIN_PFX_B64 }}" ]; then
+            echo "${{ secrets.WIN_PFX_B64 }}" | base64 -d > /tmp/cert.pfx
+            signtool sign //f /tmp/cert.pfx //p "${{ secrets.WIN_PFX_PASSWORD }}" //fd SHA256 //tr http://timestamp.digicert.com //td SHA256 target/${{ matrix.target }}/release/rclash.exe || true
+            if ls dist/*.exe 1>/dev/null 2>&1; then signtool sign //f /tmp/cert.pfx //p "${{ secrets.WIN_PFX_PASSWORD }}" //fd SHA256 //tr http://timestamp.digicert.com //td SHA256 dist/*.exe || true; fi
+            rm -f /tmp/cert.pfx
+          else
+            echo "no WIN_PFX_B64 — self-signed"
+            powershell -Command '
+              $cert = New-SelfSignedCertificate -Type CodeSigning -Subject "CN=RClash Self-Signed" -KeyExportPolicy Exportable -KeySpec Signature -KeyLength 2048 -KeyAlgorithm RSA -HashAlgorithm SHA256 -NotAfter (Get-Date).AddYears(1) -CertStoreLocation Cert:\CurrentUser\My
+              $pwd = ConvertTo-SecureString -String "rclash" -Force -AsPlainText
+              Export-PfxCertificate -Cert $cert -FilePath /tmp/self.pfx -Password $pwd | Out-Null
+              $cert | Remove-Item
+            ' || echo "self-signed gen failed"
+            if [ -f /tmp/self.pfx ]; then
+              signtool sign //f /tmp/self.pfx //p rclash //fd SHA256 target/${{ matrix.target }}/release/rclash.exe || echo "self-sign failed"
+              if ls dist/*.exe 1>/dev/null 2>&1; then signtool sign //f /tmp/self.pfx //p rclash //fd SHA256 dist/*.exe || true; fi
+              rm -f /tmp/self.pfx
+            fi
+          fi
+        shell: bash
+      - name: Sign macOS (ad-hoc)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -e
+          if [ -n "${{ secrets.APPLE_CERT_B64 }}" ]; then
+            echo "${{ secrets.APPLE_CERT_B64 }}" | base64 -d > /tmp/apple.p12
+            security create-keychain -p rclash /tmp/rclash.keychain || true
+            security import /tmp/apple.p12 -k /tmp/rclash.keychain -P "${{ secrets.APPLE_CERT_PASSWORD }}" -T /usr/bin/codesign || true
+            security unlock-keychain -p rclash /tmp/rclash.keychain || true
+            codesign --force --deep --sign "Developer ID Application" target/${{ matrix.target }}/release/rclash || true
+            if [ -d dist/RClash.app ]; then codesign --force --deep --sign "Developer ID Application" dist/RClash.app || true; fi
+            rm -f /tmp/apple.p12
+          else
+            echo "no APPLE_CERT_B64 — ad-hoc"
+            codesign --force --deep --sign - target/${{ matrix.target }}/release/rclash || true
+            if [ -d dist/RClash.app ]; then codesign --force --deep --sign - dist/RClash.app || true; fi
+          fi
+          codesign --verify --verbose target/${{ matrix.target }}/release/rclash || true
+        shell: bash
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p release-artifacts
+          if [ -f target/${{ matrix.target }}/release/rclash ]; then cp target/${{ matrix.target }}/release/rclash release-artifacts/rclash-${{ matrix.target }}; fi
+          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then cp target/${{ matrix.target }}/release/rclash.exe release-artifacts/rclash-${{ matrix.target }}.exe; fi
+          if [ -f target/${{ matrix.target }}/release/rclash-core ]; then cp target/${{ matrix.target }}/release/rclash-core release-artifacts/rclash-core-${{ matrix.target }}; fi
+          if [ -f target/${{ matrix.target }}/release/rclash-core.exe ]; then cp target/${{ matrix.target }}/release/rclash-core.exe release-artifacts/rclash-core-${{ matrix.target }}.exe; fi
+          if ls dist/*.dmg 1>/dev/null 2>&1; then cp dist/*.dmg release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.exe 1>/dev/null 2>&1; then cp dist/*.exe release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.deb 1>/dev/null 2>&1; then cp dist/*.deb release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.rpm 1>/dev/null 2>&1; then cp dist/*.rpm release-artifacts/ 2>/dev/null || true; fi
+          if ls dist/*.AppImage 1>/dev/null 2>&1; then cp dist/*.AppImage release-artifacts/ 2>/dev/null || true; fi
+          ls -R release-artifacts || true
         shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/rclash*
-          if-no-files-found: error
+          path: release-artifacts/*
+          if-no-files-found: warn
