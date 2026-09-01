@@ -1,8 +1,10 @@
-# Org setup — RClash
+# Org setup — RClash (monorepo)
 
-Current fallback: `gz0ni/rclash` + `gz0ni/mihomo` (branch `rclash`).
+Current: `gz0ni/rclash` (monorepo root `src/` + `core/` subtree `MetaCubeX/mihomo`).
 
-Desired final: `RClash/rclash` + `RClash/mihomo`.
+Desired final: `RClash/rclash` (single repo, core via `git subtree`).
+
+`gz0ni/mihomo` fork no longer needed — `core/` is `subtree` directly from `MetaCubeX/mihomo`.
 
 ## Why fallback
 
@@ -15,29 +17,22 @@ GitHub org `RClash` cannot be created via API (`admin:org` + browser device flow
 2. Transfer repos:
 
 ```bash
-gh repo transfer RClash/rclash --recipient RClash   # for gz0ni/rclash
-gh repo transfer RClash/mihomo --recipient RClash   # for gz0ni/mihomo
-# or via web: Settings → Danger Zone → Transfer ownership
+gh repo transfer gz0ni/rclash --new-owner RClash   # or web: Settings → Danger Zone → Transfer
+# no separate mihomo fork needed
 ```
 
 3. Update remotes:
 
 ```bash
-cd /path/to/rclash
+cd /path/to/RClash
 git remote set-url origin https://github.com/RClash/rclash.git
-cd /tmp/mihomo-fork
-git remote set-url origin https://github.com/RClash/mihomo.git
 ```
 
-4. Update `manifest.json` consumers if any hardcode `gz0ni/mihomo` → `RClash/mihomo`.
+No code change — binary `rclash-core` `MihomoName=RClash` org-agnostic.
 
-No code change needed — binary `rclash-core` and ldflags `MihomoName=RClash` are org-agnostic.
-
-## Fork maintenance
+## Core subtree maintenance (monorepo)
 
 ```bash
-git remote add upstream https://github.com/MetaCubeX/mihomo.git
-git fetch upstream
-git checkout rclash
-git merge --no-edit upstream/Alpha   # sync.yml does this daily at 02:00 UTC
+git subtree pull --prefix=core https://github.com/MetaCubeX/mihomo Alpha --squash -m "sync core $(date +%F)"
+# or via CI: .github/workflows/sync-subtree.yml cron 0 2 * * * → PR sync/upstream-YYYY-MM-DD
 ```

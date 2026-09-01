@@ -14,7 +14,7 @@ cargo run
 cargo run --release
 
 # sidecar (requires RClash/mihomo built)
-go run -C ../mihomo . -d /tmp/rclash-test -f config.yaml
+go run -C core . -d /tmp/rclash-test -f config.yaml
 ```
 
 ## Verification
@@ -25,10 +25,9 @@ Run before claiming work is done:
 cargo fmt --check
 cargo check --all-targets
 cargo clippy --all-targets -- -D warnings
-cargo test
-# go vet only in RClash/mihomo repo
-go vet ./...
-go test ./...
+cargo test --workspace
+go vet ./core/...
+go test ./core/...
 ```
 
 ## Build / Package
@@ -51,16 +50,15 @@ cargo generate-rpm
 # macos dmg (requires create-dmg)
 create-dmg --volname RClash dist/RClash.dmg dist/RClash.app
 
-# core (in RClash/mihomo repo)
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=v0.1.0-rclash -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o rclash-core
+# core (subtree core/)
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=v0.1.0-rclash -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o target/debug/rclash-core
 ```
 
 ## CI
 
 - `.github/workflows/ci.yml` — on push/PR: fmt, clippy, test, build matrix (5 triples)
-- `.github/workflows/release.yml` — on tag `v*`: build + package EXE/DEB/RPM/AppImage/DMG + publish Release
-- `RClash/mihomo/.github/workflows/build-core.yml` — matrix 5 triples → rclash-core-* + manifest.json
-- `RClash/mihomo/.github/workflows/sync.yml` — cron `0 2 * * *` sync upstream/Alpha → nightly or PR
+- `.github/workflows/release.yml` — on tag `v*`: `go build -C core` 5 triples + `cargo build` + `iscc`/`cargo deb`/`create-dmg` → `dist/setup-*.exe` + `manifest.json` + publish Release
+- `.github/workflows/sync-subtree.yml` — cron `0 2 * * *` `git subtree pull --prefix=core` → PR (manual tag)
 
 ## Tests
 

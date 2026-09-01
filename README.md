@@ -1,27 +1,30 @@
-# RClash — desktop
+# RClash — desktop (monorepo)
 
-Filesystem container (not a git repo). Each subfolder is its own git repo (fallback `gz0ni/*`, target `RClash/*`).
+Monorepo — `RClash` is single git `gz0ni/rclash` (target `RClash/rclash`), `core/` is `subtree` of `MetaCubeX/mihomo` `Alpha` `--squash`.
 
 ```
-RClash/
-├─ app/            # desktop — Rust eframe 0.32, https://github.com/gz0ni/rclash
-├─ core/           # core fork — Go, https://github.com/gz0ni/mihomo (branch rclash)
-└─ (android removed — desktop only)
+RClash/  (monorepo root, Rust 1.77 + Go 1.22)
+├─ src/            # desktop — Rust eframe 0.32, 860×620 Inno topory
+├─ crates/         # rclash-config, core-manager, subscription, sys-proxy, autostart, tun, db, updater
+├─ core/           # subtree MetaCubeX/mihomo Alpha (no .git), ldflags-only
+├─ packaging/      # inno, appimage, dmg
+└─ .github/        # ci.yml + release.yml (5 triples) + sync-subtree.yml
 ```
-
-See `app/docs/ORG_SETUP.md` for transfer to `RClash` org.
 
 ## Quick start
 
 ```bash
-# desktop
-cargo run --manifest-path app/Cargo.toml
+# desktop (root)
+cargo run
+cargo build --release
 
-# core (in core/)
-go build -C core -o ../app/target/debug/rclash-core -ldflags "-X github.com/metacubex/mihomo/constant.Version=v0.1.0-rclash -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
+# core (subtree)
+go build -C core -o target/debug/rclash-core -ldflags "-X github.com/metacubex/mihomo/constant.Version=v0.1.0-rclash -X github.com/metacubex/mihomo/constant.MihomoName=RClash -X github.com/metacubex/mihomo/constant.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
+go vet ./core/...
 ```
 
 ## CI
 
-- `.github/workflows/ci.yml` + `release.yml` → EXE/DEB/RPM/AppImage/DMG (5 desktop triples)
-- `core/.github/workflows/build-core.yml` + `sync.yml` → rclash-core-* + manifest.json
+- `.github/workflows/ci.yml` → fmt, clippy, test, build (5 triples)
+- `.github/workflows/release.yml` `on: tag v*` → `go build -C core` (5) + `cargo build` + `iscc`/`cargo deb`/`create-dmg` → `dist/setup-*.exe` + `rclash-core-*` + `manifest.json` → Release
+- `.github/workflows/sync-subtree.yml` `cron 0 2 * * *` → `git subtree pull --prefix=core https://github.com/MetaCubeX/mihomo Alpha --squash` → PR `sync/upstream-YYYY-MM-DD` (manual `tag v*` after merge)
