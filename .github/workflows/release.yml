@@ -7,6 +7,11 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      os:
+        description: "OS to release"
+        type: choice
+        options: [all, windows, linux, macos]
+        default: all
       tag:
         description: "Tag to release (e.g. v0.1.2) — leave empty to use latest tag on HEAD"
         required: false
@@ -45,6 +50,19 @@ jobs:
           pattern: rclash-*
           path: artifacts
           merge_multiple: true
+
+      - name: Filter artifacts by OS
+        if: inputs.os != '' && inputs.os != 'all'
+        run: |
+          echo "Filtering for OS: ${{ inputs.os }}"
+          case "${{ inputs.os }}" in
+            windows) find artifacts -type f ! \( -name "*windows*" -o -name "*.exe" -o -name "*.zip" \) -delete || true ;;
+            linux) find artifacts -type f ! \( -name "*linux*" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -delete || true ;;
+            macos) find artifacts -type f ! \( -name "*macos*" -o -name "*.dmg" \) -delete || true ;;
+          esac
+          echo "After filter:"
+          ls -R artifacts || true
+        shell: bash
 
       - name: List artifacts
         run: |

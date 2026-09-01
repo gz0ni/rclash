@@ -167,19 +167,28 @@ jobs:
           fi
           codesign --verify --verbose target/${{ matrix.target }}/release/rclash || true
         shell: bash
+      - name: Create portable (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p release-artifacts
+          PORTABLE="RClash-${GITHUB_REF_NAME:-v0.1.2}-portable-windows-x64.zip"
+          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then
+            powershell -Command "Compress-Archive -Path 'target/${{ matrix.target }}/release/rclash.exe','target/${{ matrix.target }}/release/rclash-core.exe' -DestinationPath \"release-artifacts/$PORTABLE\" -Force" || echo "portable zip failed"
+          fi
+          ls -lh release-artifacts/ || true
+        shell: bash
       - name: Prepare release artifacts
         run: |
           mkdir -p release-artifacts
-          if [ -f target/${{ matrix.target }}/release/rclash ]; then cp target/${{ matrix.target }}/release/rclash release-artifacts/rclash-${{ matrix.target }}; fi
-          if [ -f target/${{ matrix.target }}/release/rclash.exe ]; then cp target/${{ matrix.target }}/release/rclash.exe release-artifacts/rclash-${{ matrix.target }}.exe; fi
-          if [ -f target/${{ matrix.target }}/release/rclash-core ]; then cp target/${{ matrix.target }}/release/rclash-core release-artifacts/rclash-core-${{ matrix.target }}; fi
-          if [ -f target/${{ matrix.target }}/release/rclash-core.exe ]; then cp target/${{ matrix.target }}/release/rclash-core.exe release-artifacts/rclash-core-${{ matrix.target }}.exe; fi
           if ls dist/*.dmg 1>/dev/null 2>&1; then cp dist/*.dmg release-artifacts/ 2>/dev/null || true; fi
           if ls dist/*.exe 1>/dev/null 2>&1; then cp dist/*.exe release-artifacts/ 2>/dev/null || true; fi
           if ls dist/*.deb 1>/dev/null 2>&1; then cp dist/*.deb release-artifacts/ 2>/dev/null || true; fi
           if ls dist/*.rpm 1>/dev/null 2>&1; then cp dist/*.rpm release-artifacts/ 2>/dev/null || true; fi
           if ls dist/*.AppImage 1>/dev/null 2>&1; then cp dist/*.AppImage release-artifacts/ 2>/dev/null || true; fi
           ls -R release-artifacts || true
+          echo "Artifacts per target:"
+          ls -lh release-artifacts/ || true
+          echo "Total should be 7 across all matrix (setup+portable+2dmg+deb+rpm+AppImage)"
         shell: bash
       - uses: actions/upload-artifact@v4
         with:
