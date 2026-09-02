@@ -1,0 +1,93 @@
+{
+  "_comment": "Single source of truth — extracted from mockup/index.html. All Rust egui values must match this file. Window is native (no custom titlebar). Sheets full-window 840×560.",
+  "meta": {
+    "source": "mockup/index.html",
+    "window": "840x560 fixed, non-resizable (src/main.rs:18)",
+    "font_note": "Mockup forces font-weight:500 globally; egui Inter rendering is ~400 — accepted diff",
+    "titlebar": "Native OS titlebar (intentional). Mockup titlebar 28px #2D2F33 is not reproduced in code"
+  },
+  "colors": {
+    "accent": "#3B82F6",
+    "accent_hover": "#4A90FF",
+    "accent_bg": "rgba(59,130,246,0.14)",
+    "accent_bg_rgba": [59, 130, 246, 36],
+    "green": "#27AE60",
+    "red": "#E74C3C",
+    "delay": {
+      "dark": { "fast": "#50B478", "mid": "#C8B45A", "slow": "#E06060", "na": "#E74C3C" },
+      "light": { "fast": "#0A7A3A", "mid": "#8A6D00", "slow": "#C0392B", "na": "#E74C3C" }
+    },
+    "themes": {
+      "dark": {
+        "panel": "#1E1E1E",
+        "card": "#2D2F33",
+        "border": "#3C3F41",
+        "text": "#FFFFFF",
+        "weak": "#9AA0A6",
+        "muted_inline": "#9AA0A6",
+        "hover": "#3A3D45"
+      },
+      "light": {
+        "panel": "#F0F2F5",
+        "card": "#FFFFFF",
+        "border": "#D0D3D8",
+        "text": "#000000",
+        "weak": "#6B7280",
+        "hover": "#E8EAED"
+      }
+    }
+  },
+  "radius": { "window": 8, "card": 6, "proxy_row": 4, "button": 6 },
+  "border": { "width": 1 },
+  "spacing": {
+    "main_padding": 12,
+    "main_gap": 12,
+    "left_gap": 8,
+    "right_gap": 8,
+    "card_padding": 8,
+    "card_inner": 6,
+    "item_spacing": [6, 6],
+    "graph_to_stats": 8,
+    "update_banner_margin_top": "auto"
+  },
+  "layout": {
+    "window": { "w": 840, "h": 560 },
+    "left": 486,
+    "right": 318,
+    "gap": 12,
+    "inner_margin": 12,
+    "left_inner": 16,
+    "right_inner": 8,
+    "note": "left 486 = 840-2*12-12-318 to fit egui (no flex-shrink); mockup declares 498 shrinks to ~490"
+  },
+  "typography": {
+    "family": { "proportional": "Inter", "monospace": "JetBrainsMono" },
+    "size": { "body": 11, "button": 11, "small": 10, "mono": 10, "stat_value": 11, "titlebar_app": 12 },
+    "weight": 500
+  },
+  "components": {
+    "window": { "w": 840, "h": 560, "bg.dark": "#1E1E1E", "border.dark": "#3C3F41", "radius": 8, "shadow": "0 20px 60px rgba(0,0,0,.6) (native OS only)" },
+    "card": { "bg.dark": "#2D2F33", "bg.light": "#FFFFFF", "border.dark": "#3C3F41", "border.light": "#D0D3D8", "radius": 6 },
+    "button": { "h": 22, "h_small": 26, "h_big": 32, "padding_x": 10, "radius": 6, "font": 11, "gap": 6, "hover.dark": "#3A3D45", "hover.light": "#E8EAED" },
+    "button_accent": { "bg": "#3B82F6", "border": "#3B82F6", "text": "#FFFFFF", "hover": "#4A90FF" },
+    "button_master": { "h": 32, "font": 12, "radius": 6, "on": "#27AE60", "off": "#E74C3C" },
+    "combo": { "h": 22, "radius": 6, "border.dark": "#3C3F41", "bg.dark": "#2D2F33", "padding_x": 8, "font": 11 },
+    "input": { "h": 22, "radius": 6, "bg.dark": "#1E1E1E", "bg.light": "#FFFFFF", "border.dark": "#3C3F41", "placeholder.dark": "#7A7F87", "placeholder.light": "#6B7280", "focus": "#3B82F6" },
+    "proxy_row": { "h": 28, "radius": 4, "padding_x": 4, "gap": 6, "hover.dark": "#3A3D45", "selected_bg": "rgba(59,130,246,0.14)", "selected_border": "#3B82F6" },
+    "radio": { "size": 12, "border": "#6B6F76", "border_selected": "#3B82F6", "dot": 6, "dot_color": "#3B82F6" },
+    "pill": { "font": "JetBrainsMono", "size": 10, "color.dark": "#FFFFFF (forced by .window .pill)", "color.light": "#000000" },
+    "delay": { "font": "JetBrainsMono", "size": 11, "weight": 500 },
+    "graph": { "h": 114, "bg.dark": "#2D2F33", "border.dark": "#3C3F41", "radius": 6, "padding": 6, "grid": "#3C3F41", "grid_width": 0.8, "line_width": 1.6, "up": "#3B82F6", "down": "#10B981" },
+    "stat": { "h": 34, "padding_x": 8, "label": { "size": 10, "color": "#FFFFFF (dark forced) / #000000 (light)" }, "value": { "size": 11, "font": "JetBrainsMono", "weight": 700, "color": "#FFFFFF/#000000" }, "separator": "#3C3F41 / #D0D3D8" },
+    "mode_btn": { "h": 26, "radius": 6, "border.dark": "#3C3F41", "bg.dark": "#2D2F33", "text.dark": "#9AA0A6", "selected": { "bg": "#3B82F6", "border": "#3B82F6", "text": "#FFFFFF" } },
+    "overlay": { "dim": "rgba(0,0,0,0.55)", "rgba": [0, 0, 0, 140], "padding": 0, "note": "full-window without padding (user: вообще без полей)" },
+    "sheet": {
+      "all": { "w": 840, "h": 560, "note": "full-window 840×560, no outer padding; header 36 + body ScrollArea max 510" },
+      "head": { "h": 36, "padding_x": 8, "bg.dark": "#2D2F33", "border": "#3C3F41" },
+      "body": { "padding": 12, "gap": 10, "scroll_max": 510 }
+    },
+    "tabs": { "h": 22, "padding_x": 10, "radius": 6, "gap": 6, "border.dark": "#3C3F41", "bg.dark": "#2D2F33", "text.dark": "#9AA0A6", "selected": { "bg": "#3B82F6", "border": "#3B82F6", "text": "#FFFFFF" } },
+    "add_menu": { "min_w": 160, "radius": 6, "bg.dark": "#2D2F33", "border.dark": "#3C3F41", "button": { "h": 28, "radius": 6, "font": 11, "bg.dark": "#1E1E1E" } },
+    "update_banner": { "border": "#E74C3C", "bg": "rgba(231,76,60,0.08)", "rgba": [231, 76, 60, 20], "padding": 6 }
+  }
+}

@@ -28,4 +28,4 @@ RClash — desktop proxy suite, 100% mihomo compat. Inno Setup style topory desk
 - Updates via `git subtree pull --prefix=core https://github.com/MetaCubeX/mihomo Alpha --squash` + PR `sync/upstream-YYYY-MM-DD` (manual `tag v*` after merge), cron `sync-subtree.yml` 0 2 * * *
 
 ## Status
-F0 scaffolding done — desktop Inno style 860x620 fixed + 3 themes Light/Dark/OLED + CI desktop only
+F0 scaffolding done — desktop Inno style 860x620 fixed + 2 themes Light/Dark + CI desktop only

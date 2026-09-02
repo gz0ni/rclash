@@ -25,7 +25,6 @@ pub enum Theme {
     Light,
     #[default]
     Dark,
-    Oled,
 }
 
 impl Theme {
@@ -33,17 +32,18 @@ impl Theme {
         match self {
             Self::Light => "Светлая",
             Self::Dark => "Тёмная",
-            Self::Oled => "OLED",
         }
     }
     pub fn all() -> &'static [Self] {
-        &[Self::Light, Self::Dark, Self::Oled]
+        &[Self::Light, Self::Dark]
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum UpdateInterval {
+    #[serde(rename = "auto")]
+    Auto,
     #[serde(rename = "manual")]
     Manual,
     #[serde(rename = "30m")]
@@ -62,6 +62,7 @@ pub enum UpdateInterval {
 impl UpdateInterval {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::Auto => "auto",
             Self::Manual => "manual",
             Self::Min30 => "30m",
             Self::H1 => "1h",
@@ -73,7 +74,8 @@ impl UpdateInterval {
 
     pub fn label_ru(&self) -> &'static str {
         match self {
-            Self::Manual => "Вручную",
+            Self::Auto => "auto",
+            Self::Manual => "off",
             Self::Min30 => "30м",
             Self::H1 => "1ч",
             Self::H6 => "6ч",
@@ -84,6 +86,7 @@ impl UpdateInterval {
 
     pub fn all() -> &'static [Self] {
         &[
+            Self::Auto,
             Self::Manual,
             Self::Min30,
             Self::H1,
@@ -96,7 +99,8 @@ impl UpdateInterval {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
-            "manual" | "вручную" | "0" => Some(Self::Manual),
+            "auto" | "авто" => Some(Self::Auto),
+            "manual" | "вручную" | "off" | "0" => Some(Self::Manual),
             "30m" | "30м" => Some(Self::Min30),
             "1h" | "1ч" => Some(Self::H1),
             "6h" | "6ч" => Some(Self::H6),
@@ -108,7 +112,7 @@ impl UpdateInterval {
 
     pub fn duration_secs(&self) -> Option<u64> {
         match self {
-            Self::Manual => None,
+            Self::Auto | Self::Manual => None,
             Self::Min30 => Some(30 * 60),
             Self::H1 => Some(3600),
             Self::H6 => Some(6 * 3600),
@@ -205,6 +209,10 @@ pub struct AppConfig {
     pub log_level: LogLevel,
     #[serde(default)]
     pub tun_enabled: bool,
+    #[serde(default)]
+    pub proxy_enabled: bool,
+    #[serde(default)]
+    pub master_enabled: bool,
     #[serde(default = "default_true")]
     pub show_traffic_graph: bool,
     #[serde(default)]
@@ -243,6 +251,8 @@ impl Default for AppConfig {
             update_interval: UpdateInterval::H24,
             log_level: LogLevel::Info,
             tun_enabled: false,
+            proxy_enabled: false,
+            master_enabled: false,
             show_traffic_graph: true,
             mixed_port: None,
             socks_port: None,
@@ -315,6 +325,8 @@ mod tests {
             update_interval: UpdateInterval::H12,
             log_level: LogLevel::Debug,
             tun_enabled: true,
+            proxy_enabled: true,
+            master_enabled: true,
             show_traffic_graph: false,
             mixed_port: Some(7890),
             socks_port: None,

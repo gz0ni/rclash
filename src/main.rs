@@ -15,9 +15,9 @@ fn main() -> eframe::Result<()> {
     let tray_handle = tray::init_tray();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([860.0, 620.0])
-            .with_min_inner_size([860.0, 620.0])
-            .with_max_inner_size([860.0, 620.0])
+            .with_inner_size([840.0, 560.0])
+            .with_min_inner_size([840.0, 560.0])
+            .with_max_inner_size([840.0, 560.0])
             .with_resizable(false)
             .with_visible(!minimized),
         ..Default::default()

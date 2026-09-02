@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RClash — NekoBox 840×560 — Mockup fixed</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:#3B82F6;
+  --accent-hover:#4A90FF;
+  --green:#27AE60;
+  --red:#E74C3C;
+  --r:6px;
+}
+*{box-sizing:border-box}
+*{font-weight:500 !important}
+strong{font-weight:500 !important}
+.window{color:#fff}
+.window .muted{color:#fff !important}
+.window .weak{color:#fff !important}
+.window .pill{color:#fff !important}
+.window .stat span{color:#fff !important}
+.window .btn{color:#fff !important}
+.window .combo{color:#fff !important}
+.window .input{color:#fff !important}
+.window .titlebar .app{color:#fff !important}
+html,body{height:100%;margin:0}
+body{font-family:Inter,system-ui,sans-serif;background:#0e0e10;display:flex;align-items:center;justify-content:center;padding:24px;gap:24px}
+.side-note{width:260px;color:#9AA0A6;font-size:12px;line-height:1.5}
+.side-note h3{color:#E6E8EA;font-size:13px;margin:0 0 8px}
+.side-note code{background:#1E1E1E;border:1px solid #3C3F41;padding:1px 6px;border-radius:4px;color:#E6E8EA;font-family:JetBrains Mono,monospace;font-size:11px}
+.window{width:840px;height:560px;background:#1E1E1E;border:1px solid #3C3F41;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6);flex-shrink:0}
+.titlebar{height:28px;background:#2D2F33;border-bottom:1px solid #3C3F41;display:flex;align-items:center;justify-content:space-between;padding:0 10px;user-select:none}
+.titlebar .left{display:flex;align-items:center;gap:8px}
+.titlebar .dot{width:10px;height:10px;border-radius:50%;background:#3B82F6;flex-shrink:0}
+.titlebar .app{font-weight:500;font-size:12px;color:#E6E8EA;letter-spacing:.02em}
+.titlebar .ctrls{display:flex;gap:6px;align-items:center}
+.titlebar .ctrls span{width:18px;height:18px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#9AA0A6;font-size:11px}
+.main{flex:1;display:flex;gap:12px;padding:12px;min-height:0;background:#1E1E1E}
+.card{background:#2D2F33;border:1px solid #3C3F41;border-radius:6px}
+.muted{color:#9AA0A6}
+.weak{color:#C2C6CC}
+.accent{color:var(--accent)}
+.btn{height:22px;padding:0 10px;border:1px solid #3C3F41;background:#2D2F33;color:#E6E8EA;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:#3A3D45}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-accent:hover{background:var(--accent-hover)}
+.btn-green{background:var(--green);border-color:var(--green);color:#fff}
+.btn-red{background:var(--red);border-color:var(--red);color:#fff}
+.btn-small{height:26px}
+.btn-big{height:32px;font-size:12px;font-weight:500}
+.combo{height:22px;border:1px solid #3C3F41;background:#2D2F33;color:#E6E8EA;border-radius:6px;padding:0 8px;font-size:11px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;min-width:0}
+.combo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.select{position:relative}
+.dropdown{position:absolute;top:calc(100% + 6px);left:0;min-width:100%;background:#2D2F33;border:1px solid #3C3F41;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:50;padding:4px;display:none;max-height:220px;overflow:auto;min-width:220px}
+.dropdown.open{display:block}
+.dropdown button{width:100%;text-align:left;padding:6px 8px;border:none;background:transparent;color:#E6E8EA;font-size:11px;border-radius:4px;cursor:pointer}
+.dropdown button:hover{background:#3A3D45}
+.dropdown button.active{color:var(--accent);font-weight:500;background:rgba(59,130,246,.12)}
+.left{width:498px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.right{width:318px;display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0;align-self:stretch}
+#updateBanner{margin-top:auto}
+.row{display:flex;align-items:center;gap:6px}
+.input{height:22px;border:1px solid #3C3F41;background:#1E1E1E;color:#E6E8EA;border-radius:6px;padding:0 8px;font-size:11px;outline:none}
+.input::placeholder{color:#7A7F87}
+.input:focus{border-color:var(--accent)}
+.table-head{height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-bottom:1px solid #3C3F41;font-size:10px;color:#9AA0A6}
+.proxy-row{height:28px;display:flex;align-items:center;gap:6px;padding:0 4px;border-radius:4px;border:1px solid transparent}
+.proxy-row:hover{background:#3A3D45}
+.proxy-row.sel{background:rgba(59,130,246,.14);border-color:var(--accent)}
+.pill{font-family:JetBrains Mono,monospace;font-size:10px;color:#9AA0A6}
+.delay{font-family:JetBrains Mono,monospace;font-size:11px;font-weight:500}
+.delay-fast{color:#50B478 !important}
+.delay-mid{color:#C8B45A !important}
+.delay-slow{color:#E06060 !important}
+.delay-na{color:#E74C3C !important}
+.radio{width:12px;height:12px;border-radius:50%;border:1px solid #6B6F76;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.radio.sel{border-color:var(--accent)}
+.radio.sel::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.graph{height:114px;position:relative;background:#2D2F33;border:1px solid #3C3F41;border-radius:6px;padding:6px;overflow:hidden}
+.stat{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.stat+.stat{border-top:1px solid #3C3F41}
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.ctrl-grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mode-btn{height:26px;border:1px solid #3C3F41;background:#2D2F33;color:#9AA0A6;border-radius:6px;font-size:11px;cursor:pointer}
+.mode-btn.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.mode-btn.tog.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px}
+.overlay.open{display:flex}
+.sheet{width:760px;max-width:100%;max-height:100%;background:#1E1E1E;border:1px solid #3C3F41;border-radius:6px;display:flex;flex-direction:column;overflow:hidden}
+.sheet-head{height:36px;display:flex;align-items:center;gap:8px;padding:0 8px;background:#2D2F33;border-bottom:1px solid #3C3F41}
+.sheet-body{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.tabs{display:flex;gap:6px}
+.tab{height:22px;padding:0 10px;border-radius:6px;border:1px solid #3C3F41;background:#2D2F33;color:#9AA0A6;font-size:11px;cursor:pointer}
+.tab.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.help{width:14px;height:14px;border-radius:50%;border:1px solid #5A5F67;color:#9AA0A6;font-size:9px;display:inline-flex;align-items:center;justify-content:center;cursor:help;flex-shrink:0}
+.add-menu{position:absolute;top:40px;right:12px;background:#2D2F33;border:1px solid #3C3F41;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.5);padding:6px;display:none;flex-direction:column;gap:4px;z-index:60;min-width:160px}
+.add-menu.open{display:flex}
+.add-menu button{height:28px;border:1px solid #3C3F41;background:#1E1E1E;color:#E6E8EA;border-radius:6px;font-size:11px;cursor:pointer;text-align:left;padding:0 10px}
+.add-menu button:hover{background:#3A3D45}
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:#2D2F33;border:1px solid #3C3F41;color:#E6E8EA;padding:6px 12px;border-radius:999px;font-size:11px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:none}
+.toast.show{display:block}
+.theme-light.window{background:#F0F2F5}
+.theme-light .titlebar{background:#fff;border-color:#D0D3D8}
+.theme-light .titlebar .app{color:#1E232A}
+.theme-light .main{background:#F0F2F5}
+.theme-light .card{background:#fff;border-color:#D0D3D8}
+.theme-light .muted{color:#000 !important}
+.theme-light .weak{color:#000 !important}
+.theme-light .pill{color:#000 !important;font-family:JetBrains Mono,monospace}
+.theme-light .delay{font-family:JetBrains Mono,monospace;color:#000 !important}
+.theme-light .delay-fast{color:#0a7a3a !important}
+.theme-light .delay-mid{color:#8a6d00 !important}
+.theme-light .delay-slow{color:#c0392b !important}
+.theme-light .delay-na{color:#E74C3C !important}
+.theme-light .proxy-row{font-family:JetBrains Mono,monospace}
+.theme-light .proxy-row span{color:#000 !important}
+.theme-light .stat span{font-family:JetBrains Mono,monospace;color:#000 !important}
+.theme-light .btn{color:#000 !important}
+.theme-light .combo{color:#000 !important}
+.theme-light .input{color:#000 !important}
+.theme-light .titlebar .app{color:#000 !important}
+.theme-light .titlebar .muted{color:#000 !important}
+.theme-light .mode-btn{background:#fff;border-color:#D0D3D8;color:#000}
+.theme-light .mode-btn:hover{background:#E8EAED}
+.theme-light .mode-btn.sel{background:var(--accent);border-color:var(--accent);color:#fff !important}
+.theme-light .tab{background:#fff;border-color:#D0D3D8;color:#000}
+.theme-light .tab:hover{background:#E8EAED}
+.theme-light .tab.sel{background:var(--accent);border-color:var(--accent);color:#fff !important}
+.theme-light .btn{background:#fff;border-color:#D0D3D8;color:#1E232A}
+.theme-light .btn:hover{background:#E8EAED}
+.theme-light .combo{background:#fff;border-color:#D0D3D8;color:#1E232A}
+.theme-light .input{background:#fff;border-color:#D0D3D8;color:#1E232A}
+.theme-light .input::placeholder{color:#6B7280}
+.theme-light .graph{background:#fff;border-color:#D0D3D8}
+.theme-light .sheet{background:#F0F2F5}
+.theme-light .sheet-head{background:#fff;border-color:#D0D3D8}
+.theme-light .dropdown{background:#fff;border-color:#D0D3D8}
+.theme-light .dropdown button{color:#1E232A}
+.theme-light .add-menu{background:#fff;border-color:#D0D3D8}
+.theme-light .add-menu button{background:#F0F2F5;color:#1E232A}
+.theme-light .proxy-row:hover{background:#E8EAED}
+.theme-light .proxy-row.sel{background:rgba(59,130,246,.12);border-color:var(--accent)}
+.theme-light .table-head{color:#4B5563;border-color:#D0D3D8}
+.theme-light .stat+.stat{border-color:#D0D3D8}
+.theme-light .sheet-body{color:#1E232A}
+.theme-light #rawKeysList [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #rawKeysOverlayBody [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #rawKeysList [style*="color:#9AA0A6"]{color:#000 !important}
+.theme-light #rawKeysOverlayBody [style*="color:#9AA0A6"]{color:#000 !important}
+.theme-light #profilesList [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #profilesList [style*="color:#9AA0A6"]{color:#000 !important}
+.theme-light .sheet-head{background:#fff !important;border-color:#D0D3D8 !important;color:#000 !important}
+.theme-light .sheet-head span,.theme-light .sheet-head strong{color:#000 !important}
+.theme-light .sheet-body [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light .card [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #settingsBody [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #settingsBody > div{border-color:#D0D3D8 !important}
+.theme-light #editorArea{background:#fff !important;color:#000 !important;border-color:#D0D3D8 !important}
+.theme-light #updateBanner{border-color:#E74C3C !important;background:rgba(231,76,60,.08) !important}
+.theme-light #updateBanner [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #logsOverlay [style*="background:#2D2F33"]{background:#fff !important;border-color:#D0D3D8 !important}
+.theme-light #logsBody{background:#fff !important;color:#000 !important}
+.theme-light #logsBody [style*="color:#E6E8EA"]{color:#000 !important}
+.theme-light #logsFilter{border-color:#D0D3D8 !important;background:#fff !important;color:#000 !important}
+.theme-light #logLevelLabel{color:#000 !important}
+.theme-light #logsBody [style*="color:#7A7F87"]{color:#4B5563 !important}
+.theme-light #logsBody span{color:#000}
+.theme-light #logsBody span[style*="color:#9AA0A6"]{color:#0a7a3a !important}
+.theme-light #logsBody span[style*="color:#7AB478"]{color:#0a7a3a !important}
+.theme-light #logsBody span[style*="color:#C8B45A"]{color:#8a6d00 !important}
+.theme-light #logsBody span[style*="color:#E06060"]{color:#c0392b !important}
+.theme-light .help{border-color:#9AA0A6;color:#4B5563}
+</style>
+</head>
+<body>
+<div class="side-note">
+  <h3>RClash mockup 840×560 fixed</h3>
+  <div>Фиксы в этом мокапе:</div>
+  <ul style="margin:6px 0 8px 16px;padding:0">
+    <li>контраст текста (weak → #C2C6CC, не border)</li>
+    <li>окно шире 1000, уже по высоте 600</li>
+    <li>нет «Избранное/Быстро», только группы подписки</li>
+    <li>нет «Вручную» в топ-баре</li>
+    <li>нет «сортировка >» литерала</li>
+    <li>«Из буфера» — сразу из буфера, не попап</li>
+    <li>логи: Ядро / Приложение / Все (хроно-мерж)</li>
+    <li>мастер + desire-сохранение</li>
+    <li>«?» только у непонятных</li>
+    <li>крестик «× Закрыть» убран</li>
+  </ul>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    <button class="btn" onclick="setTheme('dark')">Тёмная</button>
+    <button class="btn" onclick="setTheme('light')">Светлая</button>
+    <button class="btn" onclick="resetMock()">Сброс</button>
+  </div>
+  <div style="margin-top:12px;font-family:JetBrains Mono,monospace;font-size:10px;color:#7A7F87">пространство 840×560 фиксировано • скролл только внутри панелей</div>
+</div>
+
+<div class="window" id="window">
+  <div class="titlebar">
+    <div class="left"><span class="dot"></span><span class="app">RClash</span><span class="muted" style="font-size:10px;font-family:JetBrains Mono,monospace">840×560 fixed</span><span id="coreDot" title="ядро не запущено" style="width:8px;height:8px;border-radius:50%;background:#E74C3C;box-shadow:0 0 6px rgba(231,76,60,.6);margin-left:6px"></span><span id="coreText" style="font-size:10px;font-family:JetBrains Mono,monospace;color:#E74C3C">ядро ●</span></div>
+    <div class="ctrls"><span>—</span><span>□</span><span>×</span></div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="left">
+      <div class="card" style="padding:8px;display:flex;flex-direction:column;gap:6px">
+        <div class="row" style="gap:8px">
+          <div class="select" style="flex:1;min-width:0">
+            <div class="combo" id="profilesCombo" onclick="toggleDropdown('profilesDrop')"><span id="profilesLabel">zL6zB00e5wVrDT5v</span><span style="color:#9AA0A6">▾</span></div>
+            <div class="dropdown" id="profilesDrop">
+              <button class="active" onclick="selectProfile('zL6zB00e5wVrDT5v')">zL6zB00e5wVrDT5v • активен</button>
+              <button onclick="selectProfile('custom')">custom.yaml • сырые</button>
+              <div style="height:1px;background:#3C3F41;margin:4px 0"></div>
+              <button onclick="openOverlay('configOverlay')">Управление профилями…</button>
+            </div>
+          </div>
+          <button class="btn" id="profileActionBtn" onclick="handleProfileAction()" title="Обновить">↻</button>
+          <div style="position:relative">
+            <button class="btn" style="width:26px;justify-content:center" onclick="toggleAddMenu()" title="Добавить профиль">+</button>
+            <div class="add-menu" id="addMenu">
+              <button onclick="handleAdd('clipboard')">📋 Из буфера</button>
+              <button onclick="handleAdd('url')">🔗 URL</button>
+              <button onclick="handleAdd('file')">📁 Файл</button>
+              <button onclick="handleAdd('raw')">⌨ Сырой ключ</button>
+            </div>
+          </div>
+        </div>
+        <div style="height:1px;background:#3C3F41"></div>
+        <div class="row">
+          <div class="select" style="flex:1">
+            <div class="combo" onclick="toggleDropdown('groupsDrop')"><span id="groupsLabel">Все группы</span><span style="color:#9AA0A6">▾</span></div>
+            <div class="dropdown" id="groupsDrop">
+              <button class="active" onclick="setGroup('all')">Все группы</button>
+              <button onclick="setGroup('PROXY')">PROXY</button>
+              <button onclick="setGroup('Germany')">Germany</button>
+              <button onclick="setGroup('Auto')">Auto</button>
+            </div>
+          </div>
+          <button class="btn" id="pingBtn" onclick="testPing()" title="Пинг видимых" style="width:26px;justify-content:center">◎</button>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+        <div style="height:6px"></div>
+        <div style="flex:1;overflow:auto;padding:6px" id="proxyList"></div>
+        <div style="padding:4px 6px;border-top:1px solid #3C3F41;display:flex;justify-content:flex-end"><span class="muted" style="font-size:10px" id="countLabel">8 локаций</span></div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card" style="padding:4px">
+        <div class="row" style="gap:4px">
+          <button class="btn" style="flex:1;justify-content:center;text-align:center" onclick="openOverlay('editorOverlay')">конфиг</button>
+          <button class="btn" style="flex:1;justify-content:center;text-align:center" onclick="openOverlay('logsOverlay')">логи</button>
+          <button class="btn" style="flex:1;justify-content:center;text-align:center" onclick="openOverlay('settingsOverlay')">настройки</button>
+        </div>
+      </div>
+      <div class="card" style="padding:8px">
+        <div style="font-size:10px;color:#9AA0A6">График</div>
+        <div class="graph" id="graphBox"><canvas id="graph" width="302" height="102" style="width:100%;height:100%;display:block"></canvas><div id="graphEmpty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9AA0A6;font-size:11px">Ожидание данных…</div></div>
+        <div class="row" style="justify-content:space-between;margin-top:4px;font-family:JetBrains Mono,monospace;font-size:10px;color:#9AA0A6"><span id="graphUp" style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#3B82F6;display:inline-block"></span>↑ 0 B/s</span><span id="graphDown" style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#10B981;display:inline-block"></span>↓ 0 B/s</span><span id="graphMax">max —</span></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="stat"><span class="muted" style="font-size:10px">приём</span><span class="weak" style="font-family:JetBrains Mono,monospace;font-size:11px;font-weight:700" id="totalDown">0 B</span></div>
+        <div class="stat"><span class="muted" style="font-size:10px">отдача</span><span class="weak" style="font-family:JetBrains Mono,monospace;font-size:11px;font-weight:700" id="totalUp">0 B</span></div>
+        <div class="stat"><span class="muted" style="font-size:10px">ip</span><span class="weak" style="font-family:JetBrains Mono,monospace;font-size:11px;font-weight:700" id="ipLabel">—</span></div>
+      </div>
+      <div class="card" style="padding:6px;display:flex;flex-direction:column;gap:6px">
+        <div class="ctrl-grid">
+          <button class="mode-btn sel" data-mode="rule" onclick="setMode('rule')">rule</button>
+          <button class="mode-btn" data-mode="global" onclick="setMode('global')">global</button>
+          <button class="mode-btn" data-mode="direct" onclick="setMode('direct')">direct</button>
+        </div>
+        <div class="ctrl-grid2">
+          <button class="mode-btn tog" id="proxyTog" onclick="toggleProxy()">proxy</button>
+          <button class="mode-btn tog" id="tunTog" onclick="toggleTun()">tun</button>
+        </div>
+        <button class="btn-big btn-red" id="masterBtn" onclick="toggleMaster()">ВЫКЛ • Включить</button>
+      </div>
+      <div id="updateBanner" class="card" style="display:none;border-color:#E74C3C;background:rgba(231,76,60,.08);padding:6px 8px;text-align:center"><div style="font-size:11px;color:#E6E8EA">Доступно обновление <span style="font-family:JetBrains Mono,monospace">v0.2.0</span></div><div style="display:flex;gap:6px;justify-content:center;margin-top:4px"><button class="btn btn-accent" style="height:20px;font-size:10px" onclick="toast('Обновление...');document.getElementById('updateBanner').style.display='none'">Обновить</button><button class="btn" style="height:20px;font-size:10px" onclick="document.getElementById('updateBanner').style.display='none'">Позже</button></div></div>
+    </div>
+  </div>
+
+  <!-- Overlays -->
+  <div class="overlay" id="configOverlay">
+    <div class="sheet">
+      <div class="sheet-head">
+        <button class="btn" onclick="closeOverlay('configOverlay')">< Назад</button>
+        <strong style="font-size:12px;color:#E6E8EA">Выбор конфига</strong>
+        <span style="flex:1"></span>
+        <button class="btn" onclick="clearImport()">Очистить</button>
+      </div>
+      <div class="sheet-body">
+        <div id="importError" style="display:none;background:rgba(231,76,60,.12);border:1px solid #E74C3C;color:#E6E8EA;padding:6px 8px;border-radius:6px;font-size:11px"></div>
+        <div class="card" style="padding:10px">
+          <div style="font-size:11px;color:#E6E8EA">Импорт по URL</div>
+          <div class="row" style="margin-top:6px"><span class="muted" style="font-size:11px;width:28px">URL:</span><input class="input" id="importUrl" style="flex:1" placeholder="https://example.com/sub.yaml"></div>
+          <div class="row" style="margin-top:6px"><span class="muted" style="font-size:11px;width:28px">Имя:</span><input class="input" id="importName" style="width:160px" placeholder="необязательно">
+            <div class="select"><div class="combo" style="width:80px" onclick="toggleDropdown('ivDrop')"><span id="ivLabel">24ч</span><span>▾</span></div><div class="dropdown" id="ivDrop"><button onclick="setIv('auto')">auto</button><button onclick="setIv('off')">off</button><button onclick="setIv('30м')">30м</button><button onclick="setIv('1ч')">1ч</button><button onclick="setIv('6ч')">6ч</button><button onclick="setIv('12ч')">12ч</button><button class="active" onclick="setIv('24ч')">24ч</button></div></div>
+            <button class="btn btn-accent" onclick="doImportUrl()">⬇ Загрузить</button><button class="btn" onclick="handleAdd('file')" title="Импорт из файла">📁 Файл</button></div>
+          <div class="muted" style="font-size:10px;margin-top:6px">UA: clash-verge/v2.10.2 • 📁 файл тоже здесь • детект yaml/base64/text</div>
+        </div>
+        <div class="card" style="padding:10px">
+          <div style="font-size:11px;color:#E6E8EA">Сырые ссылки</div>
+          <div class="muted" style="font-size:10px">Каждая с новой строки → custom.yaml (dedup server:port/type)</div>
+          <textarea id="rawArea" rows="3" style="width:100%;margin-top:6px;background:#1E1E1E;border:1px solid #3C3F41;color:#E6E8EA;border-radius:6px;padding:8px;font-family:JetBrains Mono,monospace;font-size:11px;resize:vertical" placeholder="hysteria2://...
+trojan://..."></textarea>
+          <div class="row" style="margin-top:6px"><button class="btn btn-accent" onclick="doAddRaw()">+ Добавить</button><button class="btn" onclick="document.getElementById('rawArea').value=''">Очистить</button><span class="muted" style="font-size:10px" id="rawHint"></span></div>
+        </div>
+        <div class="card" style="padding:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:11px">Профили — <span id="profilesCount">1</span> шт.</span><span class="muted" style="font-size:10px">profiles/*.yaml</span></div>
+          <div id="profilesList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+        <div class="card" style="padding:10px">
+          <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px">Сырые ключи</span><span class="muted" style="font-size:10px" id="rawKeysCount">8 шт.</span><span style="flex:1"></span><button class="btn" onclick="openRawKeys()">Открыть →</button></div>
+          <div id="rawKeysList" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="rawKeysOverlay">
+    <div class="sheet" style="width:560px">
+      <div class="sheet-head"><button class="btn" onclick="closeOverlay('rawKeysOverlay')">< Назад</button><strong style="font-size:12px">Сырые ключи</strong><span style="flex:1"></span><button class="btn btn-accent" onclick="handleAdd('raw')">+ Добавить</button></div>
+      <div class="sheet-body" id="rawKeysOverlayBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="editorOverlay">
+    <div class="sheet" style="width:860px">
+      <div class="sheet-head"><button class="btn" onclick="closeOverlay('editorOverlay')">< Назад</button><span style="font-size:12px">Редактор конфига</span>
+        <div class="select" style="margin-left:8px"><div class="combo" style="width:88px" onclick="toggleDropdown('editorIvDrop')"><span id="editorIvLabel">auto</span><span>▾</span></div><div class="dropdown" id="editorIvDrop"><button class="active" onclick="setEditorIv('auto')">auto</button><button onclick="setEditorIv('off')">off</button><button onclick="setEditorIv('30м')">30м</button><button onclick="setEditorIv('1ч')">1ч</button><button onclick="setEditorIv('6ч')">6ч</button><button onclick="setEditorIv('12ч')">12ч</button><button onclick="setEditorIv('24ч')">24ч</button></div></div>
+        <span style="flex:1"></span><button class="btn" onclick="openExternal()">Открыть ↗</button><button class="btn" onclick="resetEditor()">Сбросить</button><button class="btn btn-accent" onclick="saveEditor()">Сохранить</button></div>
+      <div class="sheet-body" style="padding:0"><textarea id="editorArea" style="flex:1;min-height:420px;background:#1E1E1E;color:#E6E8EA;border:none;padding:12px;font-family:JetBrains Mono,monospace;font-size:11px;resize:none;outline:none" placeholder="YAML...">proxies:
+  - name: Germany02-Hysteria2
+    type: hysteria2
+    server: de01.skill-up.store
+    port: 8443
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies: [Germany02-Hysteria2]
+rules:
+  - MATCH,PROXY
+</textarea><div id="editorError" style="display:none;margin:8px;background:rgba(231,76,60,.12);border:1px solid #E74C3C;padding:6px 8px;border-radius:6px;font-size:11px;color:#E6E8EA"></div></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="logsOverlay">
+    <div class="sheet" style="width:760px">
+      <div class="sheet-head">
+        <button class="btn" onclick="closeOverlay('logsOverlay')">< Назад</button><strong style="font-size:12px">Логи</strong>
+        <span style="flex:1"></span>
+        <div class="tabs" style="margin-right:8px"><button class="tab" data-logtab="core" onclick="setLogsTab('core')">Ядро</button><button class="tab" data-logtab="app" onclick="setLogsTab('app')">Приложение</button><button class="tab sel" data-logtab="all" onclick="setLogsTab('all')">Все</button></div>
+        <button class="btn" onclick="clearLogs()">Очистить</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#E6E8EA"><input type="checkbox" id="autoScroll" checked> Авто</label>
+        <button class="btn" onclick="copyLogs()">Копировать</button>
+        <button class="btn" onclick="exportLogs()">Экспорт</button>
+        <div class="select"><div class="combo" style="width:110px" onclick="toggleDropdown('logLevelDrop')"><span id="logLevelLabel">info</span><span>▾</span></div><div class="dropdown" id="logLevelDrop"><button onclick="setLogLevel('debug')">debug</button><button class="active" onclick="setLogLevel('info')">info</button><button onclick="setLogLevel('warning')">warning</button><button onclick="setLogLevel('error')">error</button><button onclick="setLogLevel('silent')">silent</button></div></div>
+      </div>
+      <div style="padding:6px;display:flex;gap:6px;align-items:center;background:#2D2F33;border-bottom:1px solid #3C3F41">
+        <span class="muted" style="font-size:10px">Фильтр:</span><input class="input" id="logsFilter" placeholder="Фильтр..." style="width:160px" oninput="renderLogs()"><span style="flex:1"></span><span class="muted" style="font-size:10px" id="logsCount">0 записей</span>
+      </div>
+      <div class="sheet-body" id="logsBody" style="font-family:JetBrains Mono,monospace;font-size:11px;gap:2px"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="settingsOverlay">
+    <div class="sheet" style="width:640px">
+      <div class="sheet-head"><button class="btn" onclick="closeOverlay('settingsOverlay')">< Назад</button><strong style="font-size:12px">Настройки</strong><span style="flex:1"></span>
+        <div class="tabs"><button class="tab sel" data-stab="0" onclick="setSettingsTab(0)">приложение</button><button class="tab" data-stab="1" onclick="setSettingsTab(1)">ядро</button><button class="tab" data-stab="2" onclick="setSettingsTab(2)">dns</button><button class="tab" data-stab="3" onclick="setSettingsTab(3)">сеть</button></div>
+      </div>
+      <div class="sheet-body" id="settingsBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="inputOverlay">
+    <div style="width:420px;background:#2D2F33;border:1px solid #3C3F41;border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-weight:700;font-size:12px;color:#E6E8EA" id="inputTitle">Введите текст ниже</div>
+      <textarea id="inputText" rows="3" style="background:#1E1E1E;border:1px solid #3C3F41;color:#E6E8EA;border-radius:6px;padding:8px;font-family:JetBrains Mono,monospace;font-size:11px;resize:vertical" placeholder="https://... или hysteria2://..."></textarea>
+      <div class="row" style="justify-content:flex-end"><button class="btn" onclick="closeOverlay('inputOverlay')">Отмена</button><button class="btn btn-accent" onclick="submitInput()">OK</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+let theme='dark';
+let coreAlive=false;
+function setCoreAlive(v){
+  coreAlive=v;
+  const dot=document.getElementById('coreDot');
+  const txt=document.getElementById('coreText');
+  if(!dot) return;
+  dot.style.background=v?'#27AE60':'#E74C3C';
+  dot.style.boxShadow=v?'0 0 6px rgba(39,174,96,.6)':'0 0 6px rgba(231,76,60,.6)';
+  if(txt){ txt.textContent=v?'ядро ●':'ядро ●'; txt.style.color=v?'#27AE60':'#E74C3C'; txt.title=v?'ядро поднято':'ядро не запущено'; }
+  dot.title=v?'ядро поднято':'ядро не запущено';
+}
+function setTheme(t){
+  theme=t;
+  document.getElementById('window').className='window theme-'+t;
+  document.body.style.background=t==='light'?'#E8EAED':'#0e0e10';
+  // keep delay/log colors after theme switch
+  if(coreAlive) setCoreAlive(true); else setCoreAlive(false);
+}
+let proxies=[
+  {name:'Germany02-Hysteria2', type:'hysteria2', group:'PROXY', delay:59},
+  {name:'Germany01-Hysteria2', type:'hysteria2', group:'PROXY', delay:77},
+  {name:'Germany01-Trojan', type:'trojan', group:'PROXY', delay:76},
+  {name:'Germany02-Trojan', type:'trojan', group:'PROXY', delay:null},
+  {name:'Germani01-Vless', type:'vless', group:'PROXY', delay:null},
+  {name:'Singapore01-Vmess', type:'vmess', group:'PROXY', delay:142},
+  {name:'Poland01-Shadowsocks', type:'ss', group:'PROXY', delay:88},
+  {name:'Netherlands01-Hysteria2', type:'hysteria2', group:'Auto', delay:44},
+];
+let rawKeys=[]; proxies.forEach(p=>rawKeys.push(p.name+'#'+p.type));
+let profiles=[{name:'zL6zB00e5wVrDT5v', path:'profiles/zL6zB00e5wVrDT5v.yaml', url:'https://sub.skill-up.store/zL6zB00e5wVrDT5v', active:true},{name:'custom', path:'profiles/custom.yaml', active:false}];
+let selectedGroup='all', selectedProxy='Germany02-Hysteria2', mode='rule';
+let proxyDesire=true, tunDesire=false, masterOn=false;
+let logsTab='all', logLevel='info';
+let iv='24ч';
+let search='';
+
+function flagFor(name){
+  const l=name.toLowerCase();
+  if(l.includes('germany')||l.includes('de-')||l.includes('germani'))return'🇩🇪';
+  if(l.includes('poland')||l.includes('pl-'))return'🇵🇱';
+  if(l.includes('singapore'))return'🇸🇬';
+  if(l.includes('netherlands')||l.includes('nl-'))return'🇳🇱';
+  return'🌐';
+}
+function delayClass(d){
+  if(d==null) return '';
+  if(d<100) return 'delay-fast';
+  if(d<300) return 'delay-mid';
+  return 'delay-slow';
+}
+function isLight(){ return theme==='light'; }
+function renderProxies(){
+  const list=document.getElementById('proxyList');
+  list.innerHTML='';
+  let filtered=proxies.filter(p=>{
+    if(selectedGroup!=='all' && p.group!==selectedGroup) return false;
+    return true;
+  });
+  document.getElementById('countLabel').textContent=filtered.length+' локаций';
+  if(filtered.length===0){
+    list.innerHTML='<div style="padding:24px;text-align:center;color:#9AA0A6;font-size:11px">Нет локаций</div>';
+    return;
+  }
+  filtered.forEach(p=>{
+    const isSel=selectedProxy===p.name;
+    const row=document.createElement('div');
+    row.className='proxy-row'+(isSel?' sel':'');
+    row.onclick=()=>selectProxy(p.name);
+    const flag=flagFor(p.name);
+    const isNa=p.delay==null;
+    const delayText=isNa?'n/a':p.delay+' ms';
+    const naStyle=isNa?'color:#E74C3C':''; 
+    const mono=isLight()?'font-family:JetBrains Mono,monospace;font-weight:500;':'';
+    const nameWeight=isLight()?'500':(isSel?'700':'500');
+    row.innerHTML=`<div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;${mono}"><span style="font-size:12px">${flag}</span><span style="font-size:11px;color:${isSel?'var(--accent)':'#E6E8EA'};font-weight:${nameWeight};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</span></div><span class="pill" style="${mono}">${p.type}</span><span class="delay ${delayClass(p.delay)}" style="width:52px;text-align:right;${isNa?naStyle:''};${mono}">${delayText}</span><span class="radio ${isSel?'sel':''}"></span>`;
+    list.appendChild(row);
+  });
+  updateIp();
+}
+function selectProxy(name){
+  selectedProxy=name;
+  renderProxies();
+  if(masterOn){
+    toast('Выбран '+name+' → PUT /proxies/PROXY');
+  } else {
+    toast('Выбран '+name+' (применится при включении)');
+  }
+}
+function updateIp(){
+  const p=proxies.find(x=>x.name===selectedProxy);
+  const ip=p? '195.133.'+(40+Math.floor(Math.random()*20))+'.'+Math.floor(Math.random()*200) : '—';
+  document.getElementById('ipLabel').textContent=ip==='—'?'—': flagFor(selectedProxy)+' '+ip;
+}
+function setGroup(g){
+  selectedGroup=g;
+  document.getElementById('groupsLabel').textContent= g==='all'?'Все группы': g;
+  document.querySelectorAll('#groupsDrop button').forEach(b=>b.classList.toggle('active', b.textContent.trim().startsWith(g) || (g==='all'&&b.textContent==='Все группы')));
+  renderProxies();
+  closeAllDropdowns();
+}
+function setMode(m){
+  mode=m;
+  document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('sel', b.dataset.mode===m));
+  toast('Режим '+m);
+}
+function toggleProxy(){
+  if(masterOn){
+    proxyDesire=!proxyDesire;
+    if(!proxyDesire && !tunDesire){ proxyDesire=true; toast('Должен остаться хотя бы один'); return; }
+    // immediate effect
+    toast(proxyDesire?'proxy включён':'proxy выключен');
+    updateMasterUI();
+  } else {
+    proxyDesire=!proxyDesire;
+    toast(proxyDesire?'proxy выбран (включится при ВКЛ)':'proxy снят');
+    updateToggles();
+  }
+}
+function toggleTun(){
+  if(masterOn){
+    tunDesire=!tunDesire;
+    if(!proxyDesire && !tunDesire){ tunDesire=true; toast('Должен остаться хотя бы один'); return; }
+    toast(tunDesire?'tun включён':'tun выключен');
+    updateMasterUI();
+  } else {
+    tunDesire=!tunDesire;
+    toast(tunDesire?'tun выбран':'tun снят');
+    updateToggles();
+  }
+}
+function updateToggles(){
+  document.getElementById('proxyTog').className='mode-btn tog'+(proxyDesire?' sel':'');
+  document.getElementById('tunTog').className='mode-btn tog'+(tunDesire?' sel':'');
+  document.getElementById('proxyTog').textContent='proxy'+(proxyDesire?' •':'');
+  document.getElementById('tunTog').textContent='tun'+(tunDesire?' •':'');
+}
+function updateMasterUI(){
+  updateToggles();
+  const btn=document.getElementById('masterBtn');
+  if(masterOn){
+    btn.textContent='ВКЛ • Отключить';
+    btn.className='btn-big btn-green';
+  } else {
+    btn.textContent='ВЫКЛ • Включить';
+    btn.className='btn-big btn-red';
+  }
+}
+function toggleMaster(){
+  if(masterOn){
+    masterOn=false;
+    setCoreAlive(false);
+    toast('Отключено — выбор сохранён');
+  } else {
+    if(!proxyDesire && !tunDesire){ proxyDesire=true; }
+    masterOn=true;
+    setCoreAlive(true);
+    toast('Включено: '+(proxyDesire?'proxy ':'')+(tunDesire?'tun':''));
+    startGraph();
+    // mock update banner after 2s when core up
+    setTimeout(()=>{ const b=document.getElementById('updateBanner'); if(b && Math.random()>0.3) b.style.display='block'; },1200);
+  }
+  updateMasterUI();
+}
+function handleProfileAction(){
+  const active=profiles.find(p=>p.active);
+  const isRaw=active && active.name==='custom';
+  if(isRaw){
+    openOverlay('rawKeysOverlay');
+  } else {
+    toast('Обновление профиля…');
+    setTimeout(()=>{ proxies.forEach(p=>{ if(Math.random()>0.5) p.delay=30+Math.floor(Math.random()*80);}); renderProxies(); toast('Профиль обновлён'); },500);
+  }
+}
+function testPing(){
+  const btn=document.getElementById('pingBtn');
+  btn.textContent='…';
+  setTimeout(()=>{
+    proxies.forEach(p=>{ if(Math.random()>0.2) p.delay=30+Math.floor(Math.random()*200); });
+    renderProxies();
+    btn.textContent='◎';
+    toast('Пинг видимых обновлён');
+  },600);
+}
+function toggleDropdown(id){
+  const el=document.getElementById(id);
+  const open=el.classList.contains('open');
+  closeAllDropdowns();
+  if(!open) el.classList.add('open');
+}
+function closeAllDropdowns(){
+  document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('open'));
+  document.getElementById('addMenu').classList.remove('open');
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.select') && !e.target.closest('#addMenu') && !e.target.closest('[onclick="toggleAddMenu()"]')) closeAllDropdowns();
+});
+function toggleAddMenu(){ document.getElementById('addMenu').classList.toggle('open'); }
+let inputContext=null;
+function handleAdd(kind){
+  closeAllDropdowns();
+  if(kind==='clipboard'){
+    // simulate direct clipboard read
+    if(navigator.clipboard && navigator.clipboard.readText){
+      navigator.clipboard.readText().then(text=>{
+        text=text.trim();
+        if(!text){ toast('Буфер пуст — открой ввод вручную'); openInput('clipboard'); return; }
+        processClipboardText(text);
+      }).catch(()=>{
+        // fallback mock
+        const mock='hysteria2://mock@de01.skill-up.store:8443/?sni=de01.skill-up.store#FromClipboard';
+        processClipboardText(mock);
+      });
+    } else {
+      const mock='hysteria2://mock@de01.skill-up.store:8443/?sni=de01.skill-up.store#FromClipboard';
+      processClipboardText(mock);
+    }
+  } else if(kind==='file'){
+    // simulate file picker
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.yaml,.yml,.txt';
+    inp.onchange=()=>{
+      const file=inp.files[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        const text=reader.result.toString();
+        // detect: if yaml -> profile, else raw
+        if(text.includes('proxies:')){
+          const name=file.name.replace(/\.[^/.]+$/,'');
+          profiles.push({name, path:'profiles/'+name+'.yaml', active:false});
+          renderProfiles(); toast('Файл импортирован: '+name);
+        } else {
+          // treat as raw list
+          const added=tryAddRaw(text);
+          toast(added? 'Файл: добавлены сырые ключи':'Файл: ничего не распознано');
+        }
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
+  } else if(kind==='url'){
+    openInput('url');
+  } else if(kind==='raw'){
+    openInput('raw');
+  }
+}
+function processClipboardText(text){
+  text=text.trim();
+  if(text.startsWith('http://')||text.startsWith('https://')){
+    // URL import — validate & simulate fetch with UA
+    document.getElementById('importUrl').value=text;
+    doImportUrl();
+    toast('Из буфера: URL подставлен и загружен');
+  } else if(text.includes('://')){
+    const added=tryAddRaw(text);
+    if(added) toast('Из буфера: сырая ссылка добавлена');
+    else toast('Буфер: не распознано');
+  } else if(text.includes('proxies:')){
+    toast('Из буфера: YAML обнаружен — сохраняю как профиль');
+    const name='clipboard-'+Date.now().toString().slice(-4);
+    profiles.push({name, path:'profiles/'+name+'.yaml', active:false});
+    renderProfiles();
+  } else {
+    // fallback open input
+    openInput('clipboard');
+    document.getElementById('inputText').value=text;
+  }
+}
+function openInput(ctx){
+  inputContext=ctx;
+  document.getElementById('inputOverlay').classList.add('open');
+  const title={clipboard:'Вставь из буфера',url:'Введи URL подписки',raw:'Введи сырую ссылку'}[ctx]||'Введите текст ниже';
+  document.getElementById('inputTitle').textContent=title;
+  setTimeout(()=>document.getElementById('inputText').focus(),0);
+}
+function submitInput(){
+  const t=document.getElementById('inputText').value.trim();
+  if(!t){ toast('Вставь текст'); return; }
+  if(t.startsWith('http')){
+    document.getElementById('importUrl').value=t;
+    closeOverlay('inputOverlay');
+    doImportUrl();
+  } else if(t.includes('://')){
+    const added=tryAddRaw(t);
+    closeOverlay('inputOverlay');
+    document.getElementById('inputText').value='';
+    if(added) toast('Сырая ссылка добавлена');
+    else toast('Не распознано');
+  } else {
+    toast('Не распознано');
+  }
+}
+function tryAddRaw(text){
+  const lines=text.split('\n').map(s=>s.trim()).filter(Boolean);
+  let added=0;
+  lines.forEach(line=>{
+    line.split(/\s+/).forEach(part=>{
+      if(part.includes('://')){
+        // dedup by name/server:port
+        const name=decodeURIComponent((part.split('#')[1]||'raw-'+Math.random().toString(36).slice(2,6)));
+        if(!rawKeys.find(k=>k.startsWith(name))){
+          rawKeys.push(part);
+          const m=part.match(/@([^:/?#]+):(\d+)/);
+          const srv=m? m[1]:'unknown'; const port=m?m[2]:'443';
+          const type=part.split('://')[0];
+          proxies.push({name: name||type+'-'+srv, type, group:'PROXY', delay:null});
+          added++;
+        }
+      }
+    });
+  });
+  if(added){ renderProxies(); renderRawKeys(); }
+  return added;
+}
+function doImportUrl(){
+  const url=document.getElementById('importUrl').value.trim();
+  const nameIn=document.getElementById('importName').value.trim();
+  const err=document.getElementById('importError');
+  err.style.display='none';
+  if(!url){ err.textContent='URL пустой'; err.style.display='block'; return; }
+  if(!url.startsWith('http')){ err.textContent='URL должен начинаться с http:// или https://'; err.style.display='block'; return; }
+  // simulate fetch with UA clash-verge, detect format
+  const name = nameIn || (url.split('/').pop().split('?')[0] || 'subscription') || 'sub';
+  // mock: if url contains skill-up -> success yaml, else error
+  setTimeout(()=>{
+    if(url.includes('skill-up') || url.includes('example')){
+      // mock yaml content already has proxies
+      if(profiles.find(p=>p.name===name)){ err.textContent='Профиль с таким именем уже есть'; err.style.display='block'; return; }
+      profiles.forEach(p=>p.active=false);
+      profiles.push({name, path:'profiles/'+name+'.yaml', url, active:true});
+      document.getElementById('profilesLabel').textContent=name;
+      // add proxies from subscription
+      ['Germany03-Hysteria2','Poland02-Trojan'].forEach((n,i)=>{
+        if(!proxies.find(p=>p.name===n)) proxies.push({name:n, type: i===0?'hysteria2':'trojan', group:'PROXY', delay: 60+i*10});
+      });
+      renderProfiles(); renderProxies(); closeAllDropdowns();
+      document.getElementById('importUrl').value=''; document.getElementById('importName').value='';
+      toast('Подписка загружена ✓ UA clash-verge');
+    } else {
+      err.textContent='Ошибка: HTTP 404 — проверь ссылку или сырую raw-ссылку';
+      err.style.display='block';
+    }
+  },400);
+}
+function doAddRaw(){
+  const text=document.getElementById('rawArea').value.trim();
+  if(!text){ document.getElementById('rawHint').textContent='Вставь ссылку'; return; }
+  const added=tryAddRaw(text);
+  if(added===0){ document.getElementById('rawHint').textContent='Уже есть или не распознано'; setTimeout(()=>document.getElementById('rawHint').textContent='',2000); }
+  else { document.getElementById('rawArea').value=''; document.getElementById('rawHint').textContent='Добавлено '+added; }
+}
+function renderProfiles(){
+  const c=document.getElementById('profilesList'); c.innerHTML='';
+  document.getElementById('profilesCount').textContent=profiles.length;
+  const redBtn='style="width:22px;height:22px;min-width:22px;padding:0;display:flex;align-items:center;justify-content:center;background:#E74C3C;border:1px solid #E74C3C;color:#fff;border-radius:4px;font-size:12px;cursor:pointer"';
+  profiles.forEach(p=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid '+(p.active?'var(--accent)':'#3C3F41')+';background:'+(p.active?'rgba(59,130,246,.12)':'transparent')+';border-radius:6px';
+    row.innerHTML=`<span style="color:${p.active?'var(--accent)':'#9AA0A6'}">${p.active?'●':'○'}</span><div style="flex:1;min-width:0"><div style="font-size:11px;color:${p.active?'var(--accent)':'#E6E8EA'}">${p.name}</div><div style="font-size:10px;color:#9AA0A6;font-family:JetBrains Mono,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.path}</div></div><button class="btn" onclick="activateProfile('${p.name}')" ${p.active?'disabled':''}>Выбрать</button><button ${redBtn} onclick="deleteProfile('${p.name}')" title="Удалить">×</button>`;
+    c.appendChild(row);
+  });
+}
+function activateProfile(name){
+  profiles.forEach(p=>p.active=(p.name===name));
+  document.getElementById('profilesLabel').textContent=name;
+  renderProfiles(); toast('Профиль '+name+' активирован');
+}
+function deleteProfile(name){
+  profiles=profiles.filter(p=>p.name!==name);
+  if(profiles.length && !profiles.find(p=>p.active)) profiles[0].active=true;
+  if(profiles.find(p=>p.active)) document.getElementById('profilesLabel').textContent=profiles.find(p=>p.active).name;
+  renderProfiles(); toast('Удалено '+name);
+}
+function renderRawKeys(){
+  const redBtn='style="width:22px;height:22px;min-width:22px;padding:0;display:flex;align-items:center;justify-content:center;background:#E74C3C;border:1px solid #E74C3C;color:#fff;border-radius:4px;font-size:12px;cursor:pointer"';
+  const html=rawKeys.map((k,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border:1px solid #3C3F41;border-radius:4px"><span style="font-size:10px;color:#9AA0A6">${i+1}</span><span style="flex:1;font-family:JetBrains Mono,monospace;font-size:10px;color:#E6E8EA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.slice(0,68)}</span><button ${redBtn} onclick="removeRaw(${i})">×</button></div>`).join('');
+  document.getElementById('rawKeysList').innerHTML=html||'<div style="color:#9AA0A6;font-size:11px">Пока пусто</div>';
+  document.getElementById('rawKeysCount').textContent=rawKeys.length+' шт.';
+  document.getElementById('rawKeysOverlayBody').innerHTML= rawKeys.length? rawKeys.map((k,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px;border:1px solid #3C3F41;border-radius:4px"><span style="font-size:10px;color:#9AA0A6">${i+1}</span><span style="flex:1;font-family:JetBrains Mono,monospace;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.slice(0,64)}</span><button ${redBtn} onclick="removeRaw(${i})">×</button></div>`).join('') : '<div style="padding:40px;text-align:center;color:#9AA0A6">Нет ключей</div>';
+}
+function removeRaw(i){ rawKeys.splice(i,1); proxies.splice(i,1); renderRawKeys(); renderProxies(); toast('Удалено'); }
+function openRawKeys(){ document.getElementById('rawKeysOverlay').classList.add('open'); renderRawKeys(); }
+function clearImport(){ document.getElementById('importUrl').value=''; document.getElementById('importName').value=''; document.getElementById('rawArea').value=''; document.getElementById('importError').style.display='none'; }
+function setIv(v){ iv=v; document.getElementById('ivLabel').textContent=v; closeAllDropdowns(); }
+let editorIv='auto';
+function setEditorIv(v){ editorIv=v; document.getElementById('editorIvLabel').textContent=v; closeAllDropdowns(); toast('Период обновления: '+v); }
+function setLogLevel(l){ logLevel=l; document.getElementById('logLevelLabel').textContent=l; closeAllDropdowns(); renderLogs(); }
+let settingsTab=0;
+function setSettingsTab(i){
+  settingsTab=i;
+  document.querySelectorAll('[data-stab]').forEach(b=>b.classList.toggle('sel', parseInt(b.dataset.stab)===i));
+  renderSettings();
+}
+function renderSettings(){
+  const body=document.getElementById('settingsBody'); body.innerHTML='';
+  const row=(title, help, right)=>{
+    const div=document.createElement('div');
+    div.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #3C3F41';
+    div.innerHTML=`<div style="flex:1"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#E6E8EA">${title}</span>${help?`<span class="help" title="${help}">?</span>`:''}</div>${help?`<div style="font-size:10px;color:#7A7F87;margin-top:2px">${help}</div>`:''}</div><div>${right}</div>`;
+    body.appendChild(div);
+  };
+  if(settingsTab===0){
+    row('Тема', null, `<div style="display:flex;gap:6px"><button class="btn ${theme==='dark'?'btn-accent':''}" onclick="setTheme('dark')">Тёмная</button><button class="btn ${theme==='light'?'btn-accent':''}" onclick="setTheme('light')">Светлая</button></div>`);
+    row('Показывать график', null, `<label><input type="checkbox" checked></label>`);
+    row('Свернуть в трей', null, `<label><input type="checkbox" checked></label>`);
+    row('Уровень логов', null, `<span class="combo" style="width:90px">info ▾</span>`);
+  } else if(settingsTab===1){
+    row('Режим по умолчанию', null, `<span class="combo" style="width:80px">rule ▾</span>`);
+    row('TUN', 'Перехватывает весь трафик, требует прав администратора. Без него работает только системный прокси.', `<input type="checkbox" ${tunDesire?'checked':''}>`);
+    row('Allow LAN', 'Разрешить подключения из локальной сети (другие устройства смогут использовать прокси).', `<input type="checkbox">`);
+    row('IPv6 трафик', 'Пропускать IPv6 через прокси (выкл — только IPv4).', `<input type="checkbox">`);
+    row('Unified Delay', 'Одна проверка задержки на все группы — экономит время, но менее точно.', `<input type="checkbox" checked>`);
+    row('TCP Concurrent', 'Параллельные подключения к прокси, быстрее но больше нагрузка.', `<input type="checkbox" checked>`);
+    row('Mixed Port', 'Единый порт для HTTP и SOCKS (0 — выкл). Обычно 7890.', `<input class="input" value="7890" style="width:60px">`);
+    row('SOCKS Port', 'Отдельный SOCKS5-порт (0 — выкл, используется Mixed).', `<input class="input" value="0" style="width:60px">`);
+    row('External Controller', 'API ядра для управления (обычно 127.0.0.1:9090).', `<input class="input" value="127.0.0.1:9090" style="width:120px">`);
+    row('Keep Alive', 'Интервал keep-alive в секундах для TCP.', `<input class="input" value="30" style="width:50px">`);
+    row('Geodata Loader', 'Как грузить GeoIP/Geosite: Memory — меньше RAM, Standard — быстрее.', `<span class="combo" style="width:110px">Memory ▾</span>`);
+  } else if(settingsTab===2){
+    row('DNS Enable', 'Включить встроенный DNS ядра.', `<input type="checkbox" checked>`);
+    row('Режим', 'FakeIP — выдаёт виртуальные IP и резолвит по запросу; RedirHost — подмена Host.', `<span class="combo" style="width:80px">FakeIP ▾</span>`);
+    row('Listen', 'Адрес:порт DNS сервера, например 0.0.0.0:1053.', `<input class="input" value="0.0.0.0:1053" style="width:110px">`);
+    row('DNS IPv6 (AAAA)', 'Отвечать AAAA записями (разрешение IPv6).', `<input type="checkbox">`);
+    row('FakeIP Range', 'Диапазон фейк-IP, например 198.18.0.1/16.', `<input class="input" value="198.18.0.1/16" style="width:110px">`);
+    row('Nameserver', 'Основные резолверы (список).', `<button class="btn">0 ✎</button>`);
+    row('Fallback', 'Резервные резолверы, если основные не ответили.', `<button class="btn">0 ✎</button>`);
+  } else {
+    row('Bypass Domain', 'Домены мимо прокси (прямое соединение).', `<button class="btn">0 ✎</button>`);
+    row('Append System DNS', 'Добавлять системные DNS к списку резолверов.', `<input type="checkbox">`);
+    row('Hosts', 'Статические записи hosts (домен → IP).', `<button class="btn">0 ✎</button>`);
+  }
+}
+let coreLogs=[], appLogs=[];
+function genLog(level, msg, who){
+  const t=new Date(); const time=t.toTimeString().slice(0,8)+'.'+String(t.getMilliseconds()).padStart(3,'0');
+  return {time, level, msg: '['+who+'] '+msg};
+}
+function seedLogs(){
+  coreLogs=[genLog('info','core started v0.1.0-rclash','core'), genLog('info','proxy Germany02 selected','core'), genLog('warning','dial timeout 2s','core')];
+  appLogs=[genLog('info','logger initialized level=info','app'), genLog('info','theme dark','app')];
+}
+function renderLogs(){
+  const body=document.getElementById('logsBody'); body.innerHTML='';
+  let filter=document.getElementById('logsFilter').value.toLowerCase();
+  let levelOrder={debug:0,info:1,warning:2,error:3,silent:4};
+  let minLevel=levelOrder[logLevel] ?? 1;
+  const levelVal=l=> levelOrder[l] ?? 1;
+  let src=[];
+  if(logsTab==='core') src=coreLogs;
+  else if(logsTab==='app') src=appLogs;
+  else src=[...coreLogs,...appLogs].sort((a,b)=> a.time.localeCompare(b.time));
+  let filtered=src.filter(e=>{
+    if(levelVal(e.level) < minLevel) return false;
+    if(filter && !e.msg.toLowerCase().includes(filter)) return false;
+    return true;
+  });
+  document.getElementById('logsCount').textContent=filtered.length+' записей';
+  if(filtered.length===0){ body.innerHTML='<div style="padding:40px;text-align:center;color:#9AA0A6">Логов пока нет</div>'; return; }
+  filtered.forEach(e=>{
+    const col={debug:'#9AA0A6',info:'#7AB478',warning:'#C8B45A',error:'#E06060'}[e.level]||'#9AA0A6';
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:8px;padding:2px 6px';
+    row.innerHTML=`<span style="color:#7A7F87">${e.time}</span><span style="color:${col};min-width:50px">${e.level}</span><span style="color:#E6E8EA">${e.msg}</span>`;
+    body.appendChild(row);
+  });
+  if(document.getElementById('autoScroll').checked) body.scrollTop=body.scrollHeight;
+}
+function setLogsTab(t){
+  logsTab=t;
+  document.querySelectorAll('[data-logtab]').forEach(b=>b.classList.toggle('sel', b.dataset.logtab===t));
+  renderLogs();
+}
+function clearLogs(){
+  if(logsTab==='core') coreLogs=[];
+  else if(logsTab==='app') appLogs=[];
+  else {coreLogs=[]; appLogs=[];}
+  renderLogs();
+}
+function copyLogs(){ toast('Скопировано '+document.getElementById('logsCount').textContent); }
+function exportLogs(){ toast('Экспорт в rclash_logs.txt'); }
+function selectProfile(n){
+  document.getElementById('profilesLabel').textContent=n;
+  closeAllDropdowns();
+}
+function openOverlay(id){ document.getElementById(id).classList.add('open'); if(id==='logsOverlay') renderLogs(); if(id==='settingsOverlay') renderSettings(); if(id==='configOverlay') {renderProfiles(); renderRawKeys();}}
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+function openExternal(){ toast('Открыто во внешнем редакторе'); }
+function resetEditor(){ document.getElementById('editorArea').value=''; }
+function saveEditor(){ const v=document.getElementById('editorArea').value.trim(); if(!v.includes('proxies:')){ document.getElementById('editorError').textContent='YAML должен содержать proxies:'; document.getElementById('editorError').style.display='block'; return; } document.getElementById('editorError').style.display='none'; closeOverlay('editorOverlay'); toast('Сохранено ✓'); }
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),1800);
+}
+let graphTimer=null, gUp=[], gDown=[], totalUp=0, totalDown=0;
+function startGraph(){
+  if(graphTimer) return;
+  document.getElementById('graphEmpty').style.display='none';
+  gUp=[]; gDown=[];
+  graphTimer=setInterval(()=>{
+    const up= 50+Math.random()*800, down= 50+Math.random()*600;
+    gUp.push(up); gDown.push(down); if(gUp.length>60) gUp.shift(); if(gDown.length>60) gDown.shift();
+    totalUp+=Math.floor(up*4); totalDown+=Math.floor(down*4);
+    document.getElementById('totalUp').textContent=formatBytes(totalUp);
+    document.getElementById('totalDown').textContent=formatBytes(totalDown);
+    document.getElementById('graphUp').innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:#3B82F6;display:inline-block"></span>↑ '+formatBytes(Math.floor(up))+'/s';
+    document.getElementById('graphDown').innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:#10B981;display:inline-block"></span>↓ '+formatBytes(Math.floor(down))+'/s';
+    drawGraph();
+  },400);
+}
+function formatBytes(b){ if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; if(b<1073741824) return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
+function drawGraph(){
+  const c=document.getElementById('graph'), ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const max=Math.max(1024, ...gUp, ...gDown);
+  const w=c.width, h=c.height, pad=6;
+  // grid
+  ctx.strokeStyle='#3C3F41'; ctx.lineWidth=0.8;
+  for(let i=1;i<3;i++){ const y=pad+(h-2*pad)*i/3; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke(); }
+  const plot=(arr, col)=>{
+    if(arr.length<2) return;
+    ctx.strokeStyle=col; ctx.lineWidth=1.6; ctx.beginPath();
+    arr.forEach((v,i)=>{
+      const x=pad+(i/60)*(w-2*pad);
+      const y=h-pad-(v/max)*(h-2*pad);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  };
+  plot(gUp,'#3B82F6'); plot(gDown,'#10B981');
+  document.getElementById('graphMax').textContent='max '+(max/1024).toFixed(0)+' KB/s';
+}
+function resetMock(){
+  masterOn=false; proxyDesire=true; tunDesire=false; selectedProxy='Germany02-Hysteria2'; selectedGroup='all'; document.getElementById('searchInput').value=''; document.getElementById('importUrl').value=''; clearInterval(graphTimer); graphTimer=null; document.getElementById('graphEmpty').style.display='flex'; gUp=[];gDown=[];totalUp=0;totalDown=0;document.getElementById('totalUp').textContent='0 B';document.getElementById('totalDown').textContent='0 B';seedLogs();updateMasterUI();renderProxies();renderProfiles();renderRawKeys();renderLogs();renderSettings();toast('Сброс');
+}
+seedLogs(); renderProxies(); renderProfiles(); renderRawKeys(); renderSettings(); renderLogs(); updateMasterUI(); updateToggles(); setCoreAlive(false);
+setTimeout(()=>{ if(Math.random()>0.5){ document.getElementById('updateBanner').style.display='block'; }}, 2500);
+</script>
+</body>
+</html>
