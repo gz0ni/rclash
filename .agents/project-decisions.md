@@ -15,6 +15,41 @@ Recorded decisions and the reasoning behind them, so future work does not silent
 
 ---
 
+### Add-menu import flow, raw keys memory-only (2026-09-03)
+
+- Decision: пункты «+» открывают модальный input-диалог (`Вставь из буфера` предзаполнен из arboard, `Введи URL подписки`, `Введи сырую ссылку`, файл через rfd сразу в `process_text`); URL грузится в фоне через `poll-promise` + `UA clash-verge/v2.10.2`; сырые ссылки живут только в `self.proxies` в памяти, никуда не пишутся.
+- Reason: не блокировать UI сетью; persist сырых отложен по запросу («пока никуда»); YAML-профили persist через существующий `import_profile_content` + `ProfileStore`.
+- Alternatives considered: blocking reqwest в UI-потоке (фриз), запись сырых в `custom.yaml` (отложено).
+- Consequences: после перезапуска сырые ключи пропадают; при включении persist — дописать custom.yaml в `add_raw_proxies`.
+
+### Profiles screen delete-only + raw keys (2026-09-03)
+
+- Decision: экран профилей только удаляет: убраны кнопка «Выбрать», radio `●/○` и подсветка активного; добавлена секция «Сырые ключи N шт.» со строками `{индекс} {name}#{proxy_type}` и красной `×`; удаление ключа убирает элемент из `self.proxies`.
+- Reason: выбор профиля не нужен на этом экране; сырые ключи уже есть как `self.proxies`, отдельный оверлей и кнопка «Открыть →» не нужны.
+- Alternatives considered: отдельный оверлей сырых ключей (лишний экран при видимом списке).
+- Consequences: `render_profiles_screen` больше не меняет `active_profile`; удаление активного профиля сбрасывает его через `ProfileStore::remove`.
+
+### Profiles screen Tab::Profiles (2026-09-03)
+
+- Decision: `Tab::Profiles` рендерит полноэкранный `render_profiles_screen` (заголовок `< Назад Профили N шт.` + ScrollArea карточек из `profile_store.profiles`); карточка: `●/○` + имя + путь mono + `Выбрать` (disabled у активного) + красная `×` 22×22; `Выбрать`/`×` пишут через `save_profile_store`; вход — пункт «Управление профилями…» в ComboBox профилей.
+- Reason: полноэкранный паттерн как логи/настройки, без оверлеев; удаление активного профиля сбрасывает `active_profile` на `store.active` (`remove()` чистит active).
+- Alternatives considered: импорт URL/сырые ссылки/ключи на этом же экране (отложено — только список по запросу).
+- Consequences: новый вариант `Tab` — учесть в будущих match по табам.
+
+### Settings screen Tab::Dashboard + SettingsTab (2026-09-03)
+
+- Decision: `Tab::Dashboard` — дефолтный main; `Tab::Settings` рендерит `render_settings_screen` с подтабами `приложение/ядро/dns/сеть`; `< Назад` везде ведёт на Dashboard; DNS/сеть списки — локальный стейт-заглушка (`0 ✎`), persist только `AppConfig`-полей.
+- Reason: таб-бар всегда на main; настройки ядра/DNS/сети позже привяжутся к core API и конфигу, сейчас важен каркас и persist базовых полей.
+- Alternatives considered: всё persist в `AppConfig` сразу (раздувает контракт `app.json` под незавершённый core API).
+- Consequences: клик «настройки» открывает экран вместо main; дефолт-подсветка таб-бара снята с «настройки».
+
+### Logs screen navigation via Tab::Logs (2026-09-03)
+
+- Decision: `Tab::Logs` рендерит полноэкранный `render_logs_screen`, дефолт `active_tab = Tab::Settings` (двухколоночный main), `< Назад` из логов и из конфига ведёт на main.
+- Reason: таб-бар всегда видим на main; отдельный флаг навигации усложняет состояние; `Settings` пока показывает main до появления экрана настроек.
+- Alternatives considered: `Option<Tab>` с `None` = main (лишний рефакторинг всех веток), отдельный `show_logs` bool (дублирует `active_tab`).
+- Consequences: клик «настройки» пока подсвечивается на main; при появлении экрана настроек дефолт и бэки пересмотреть.
+
 ### Subscription User-Agent clash-verge (2026-08-31)
 
 - Decision: все запросы подписок `fetch_and_save_subscription` отправлять с `User-Agent: clash-verge/v2.10.2` (совместим с `clash`).

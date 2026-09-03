@@ -73,7 +73,7 @@
     "button_master": { "h": 32, "font": 12, "radius": 6, "on": "#27AE60", "off": "#E74C3C" },
     "combo": { "h": 22, "radius": 6, "border.dark": "#3C3F41", "bg.dark": "#2D2F33", "padding_x": 8, "font": 11 },
     "input": { "h": 22, "radius": 6, "bg.dark": "#1E1E1E", "bg.light": "#FFFFFF", "border.dark": "#3C3F41", "placeholder.dark": "#7A7F87", "placeholder.light": "#6B7280", "focus": "#3B82F6" },
-    "proxy_row": { "h": 28, "radius": 4, "padding_x": 4, "gap": 6, "hover.dark": "#3A3D45", "selected_bg": "rgba(59,130,246,0.14)", "selected_border": "#3B82F6" },
+    "proxy_row": { "h": 27, "radius": 4, "padding_x": 4, "gap": 6, "hover.dark": "#3A3D45", "selected_bg": "rgba(59,130,246,0.14)", "selected_border": "#3B82F6" },
     "radio": { "size": 12, "border": "#6B6F76", "border_selected": "#3B82F6", "dot": 6, "dot_color": "#3B82F6" },
     "pill": { "font": "JetBrainsMono", "size": 10, "color.dark": "#FFFFFF (forced by .window .pill)", "color.light": "#000000" },
     "delay": { "font": "JetBrainsMono", "size": 11, "weight": 500 },
