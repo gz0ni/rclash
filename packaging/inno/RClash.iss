@@ -20,6 +20,7 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile=..\..\assets\icons\windows\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]

@@ -15,6 +15,34 @@ Recorded decisions and the reasoning behind them, so future work does not silent
 
 ---
 
+### Geodata self-healing: jsdelivr mirror + missing-list skip (2026-09-04)
+
+- Decision: `geox-url` в runtime указывает на jsdelivr-зеркало `meta-rules-dat`; перед стартом `ensure_geodata` докачивает отсутствующие `GeoSite.dat`/`GeoIP.dat` (jsdelivr primary, github fallback); правила со списками, которых нет в геодате, выкидываются из runtime-копии с варнингом (до 60 проходов `-t`), строгий режим `AppConfig.geodata_strict` (по умолчанию выкл); кнопка «Обновить геодату» у ошибки старта и в Настройки → Ядро.
+- Reason: профиль требует дефисные `*-ads` списки, которых нет даже в свежей геодате (`adobe@ads`-стиль апстрима); без пропуска профиль не стартует вообще; github в RU часто недоступен.
+- Alternatives considered: только обновление файла (не лечит), строгая ошибка по умолчанию (профиль мёртв), парсинг `.dat` через prost (хрупко без protoc-контракта — оставлен `-t` цикл).
+- Consequences: `rclash-updater::geodata`, `runtime::{parse_missing_geodata, strip_missing_geodata_rules}`, `supervisor::precheck`, `CoreOpOutcome::{Started.warning, GeodataDone}`, `core_warning` в UI.
+
+### Full app-core binding: buttons drive the sidecar (2026-09-04)
+
+- Decision: мастер-кнопка — полный жизненный цикл ядра (сборка runtime из БД + `-t` + старт/healthcheck, стоп + снятие прокси); автостарт ядра при запуске если `master_enabled=true`; `proxy` — системный прокси только при живом ядре; `tun` — `rclash-tun-helper up/down` + пересборка + рестарт; режим — единый `AppConfig.mode` (persist + runtime + живой PATCH + сверка с `GET /configs`); настройки делятся на hot-PATCH (`log-level/ipv6/allow-lan/tcp-concurrent`) и cold-рестарт (порты/контроллер/geodata/unified-delay/keep-alive); DNS/хосты — пересборка + `reload`; API-база берётся из `external_controller` везде; reconcile раз в 2 с гасит кнопки при падении ядра.
+- Reason: пользователь потребовал полностью связать приложение с ядром; автостарт и helper подтверждены ответами на вопросы; контракт REST проверен живым E2E.
+- Alternatives considered: `PUT /dns` (нет в ядре), PATCH `unified-delay/keep-alive` (молча игнорятся), Append System DNS и Bypass (нет эквивалента в mihomo — убраны из UI).
+- Consequences: `AppConfig {mode, dns: DnsConfig, hosts}` + `api_base`/валидаторы, `supervisor` все вызовы с `base`, `reload_blocking` шлёт `{}`; отменяет решение 2026-09-03 «старт только по кнопке».
+
+### App icon set from single SVG master, committed binaries (2026-09-04)
+
+- Decision: `assets/icons/{source,app,tray,windows,linux}` — один мастер `icon.svg` (чёрный скруглённый квадрат + белый R-глиф), PNG рендерятся локально ImageMagick и коммитятся бинарниками, без генератора в CI; трей использует тот же квадрат 1:1 (tray-32/24/16), декод через крейт `png` (`src/icon.rs`), окно eframe — `ViewportBuilder::with_icon`, EXE — `build.rs` + `winres` embed `icon.ico`; `.icns` для macOS — отдельно на mac-раннере.
+- Reason: пользователь выбрал «один SVG для всего» и локальную генерацию; `png` легче `image`; чёрный квадрат виден на светлой и тёмной теме трея без пары white/black.
+- Alternatives considered: генератор иконок в CI (лишняя зависимость сборки), крейт `image` (тянет rav1e/exr/gif — раздувает lock), кроп-версия глифа для трея (отклонено — тот же квадрат).
+- Consequences: `src/tray.rs` грузит `tray-32.png`, `src/main.rs` — `app-256.png`, `packaging/inno` `SetupIconFile`, AppImage/deb/rpm берут `linux/rclash.png` + `rclash.desktop`; `magick` не в PATH (полный путь `C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\magick.exe`), рендерить только с `-depth 8 -define png:color-type=6` (см. gotchas).
+
+### Core binding: DB as source of truth, master-only start (2026-09-03)
+
+- Decision: `rclash.db` (rusqlite WAL) — единый стор: `configs` (контент профилей целиком) + `raw_keys` (сырой текст ссылки + схема + имя + YAML); запуск ядра только по мастер-кнопке; runtime YAML собирается в `RClash/runtime/config.yaml` из активного профиля + сырые ключи поверх.
+- Reason: как во FlClash — конфиги и ключи живут в локальной БД, файлы `profiles/` больше не источник истины; пользователь выбрал старт только по кнопке и отдельную таблицу `raw_keys`.
+- Alternatives considered: файлы как стор (расхождения, решено против), автостарт ядра при запуске (отклонено пользователем).
+- Consequences: `crates/rclash-db` (`raw_keys`, `migration_needed/mark_migrated`), `rclash-config::runtime` (assemble/merge/build_raw_keys_config + `core_secret`), `rclash-core-manager::supervisor` (spawn/healthcheck/blocking REST), `src/app.rs` без моков; `rules.md` «no DB» больше не действует.
+
 ### Add-menu import flow, raw keys memory-only (2026-09-03)
 
 - Decision: пункты «+» открывают модальный input-диалог (`Вставь из буфера` предзаполнен из arboard, `Введи URL подписки`, `Введи сырую ссылку`, файл через rfd сразу в `process_text`); URL грузится в фоне через `poll-promise` + `UA clash-verge/v2.10.2`; сырые ссылки живут только в `self.proxies` в памяти, никуда не пишутся.

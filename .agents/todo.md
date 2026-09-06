@@ -19,10 +19,21 @@ Task checklist. The agent maintains this file: creates items, marks them done, k
 ## Open
 
 - [ ] iOS — в долгом ящике
+- [ ] IP в статистике сейчас заглушка — взять реальный IP выбранного прокси/внешний lookup
+- [ ] Connections/логи ядра (WS /connections /logs) — подключить по образцу traffic-потока
+- [ ] Проверить deb/rpm с ядром в CI на Linux (метаданные добавлены, локально не проверялись)
+- [ ] TUN helper в CI/на чистой машине: pkexec-policy, wintun.dll рядом с exe, macOS osascript — не проверялись
+- [ ] Системный прокси при kill -9 приложения остаётся включённым — сторож/флаг при старте
 
 ## In Progress
 
 ## Done
+
+- [x] Геодата: самолечение старта (2026-09-04) — `geox-url` jsdelivr в runtime, `rclash-updater::geodata::ensure_geodata` (jsdelivr→github, atomic), цикл `precheck → parse_missing_geodata → strip_missing_geodata_rules` (60 проходов) с варнингом `core_warning`, `geodata_strict`, кнопка «Обновить геодату» + хвост `-t` 12 строк + боевая проверка: 19 списков `*-ads` вычищены, `GeoIP.dat` 17 МБ докачан, `core started 1.10.0` + unit/E2E + `cargo fmt/check/clippy/test` 62 passed
+- [x] Полная связка приложения с ядром (2026-09-04) — мастер (старт/стоп/автостарт/reconcile), `proxy` (системный прокси при живом ядре + mixed-port живьём), `tun` (helper up/down + рестарт, чекбокс настроек = тот же тоггл), режим (единый `AppConfig.mode` + PATCH + сверка), настройки hot/cold, DNS (`DnsConfig` + reload) и hosts-редактор, API-база из `external_controller`, `tun.enable=false` явно, `reload` с `{}` + живой E2E (`-t`/version/PATCH/reload/proxies) + `cargo fmt/check/clippy/test` 56 passed + `go vet` + смоук exe 8s жив
+- [x] App icon set from SVG master (2026-09-04) — `assets/icons/{source/icon.svg,app/512-48,tray/32-16,windows/icon.ico,linux/rclash.png}` + `packaging/linux/rclash.desktop` + `png 0.17` + `src/icon.rs` decode RGBA + `src/tray.rs` tray-32 вместо синего круга + `src/main.rs` with_icon app-256 + `build.rs` winres embed ico + iss `SetupIconFile` + AppImage/deb/rpm иконки + `cargo fmt/check/clippy/test` 49 passed + смоук `--minimized` 8s жив
+
+- [x] Привязка UI к ядру + БД как единый стор (2026-09-03) — мастер-кнопка стартует/останавливает `rclash-core` (`supervisor::spawn_and_wait` с `-t` пречеком + healthcheck `/version`), runtime YAML собирается из БД в `RClash/runtime/config.yaml` (патч портов/controller/secret/geodata/tun), `raw_keys` таблица + миграция legacy, прокси/пинг/режим/перезагрузка через REST, traffic-поток в статистику, sys-proxy тоггл, deb/rpm метаданные с ядром, чистка `docs/tests/scripts` (оставлены `mockup/` + `design-tokens.json`) + `cargo fmt/check/clippy/test` 45 passed + живой E2E ядра + смоук exe
 
 - [x] Radio ring DPR margin (2026-09-03) — `src/app.rs` ячейка кружка 12→14px + кольцо обратно r5.5 (запас 1pt от клипа, мокапный размер) + `cargo build` свежий exe + `cargo fmt/check/clippy/test` 41 passed
 - [x] Radio ring clip fix (2026-09-03) — `src/app.rs` кольцо выбора `r 5.5→5.0` в ячейке 12×12, штрих целиком внутри клипа + `cargo fmt/check/clippy/test` 41 passed

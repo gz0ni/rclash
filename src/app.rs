@@ -1,6 +1,118 @@
 use rclash_config::profile::ProfileStore;
-use rclash_config::{AppConfig, LogLevel, Theme, UpdateInterval};
+use rclash_config::{AppConfig, CoreMode, LogLevel, Theme, UpdateInterval};
 use rclash_core_manager::api::log_level_color;
+
+#[derive(Debug)]
+enum CoreOpOutcome {
+    Started {
+        version: String,
+        child: std::process::Child,
+        warning: Option<String>,
+    },
+    Proxies {
+        items: Vec<ProxyItem>,
+        groups: Vec<String>,
+        mode: Option<String>,
+        now: Option<String>,
+    },
+    Delays {
+        delays: Vec<(String, Option<u64>)>,
+    },
+    TunApplied {
+        enabled: bool,
+    },
+    TunFailed {
+        target: bool,
+        message: String,
+    },
+    GeodataDone,
+    Done,
+    Failed(String),
+}
+
+#[derive(Debug, Clone, Default)]
+struct TrafficSample {
+    up: u64,
+    down: u64,
+    up_total: u64,
+    down_total: u64,
+}
+
+fn secret_for_ops() -> String {
+    rclash_config::load_app_config()
+        .core_secret
+        .unwrap_or_default()
+}
+
+fn base_for_ops() -> String {
+    rclash_config::api_base(&rclash_config::load_app_config().external_controller)
+}
+
+fn sys_proxy_addr() -> String {
+    let cfg = rclash_config::load_app_config();
+    format!("127.0.0.1:{}", cfg.mixed_port.unwrap_or(7890))
+}
+
+fn apply_sys_proxy_state(enabled: bool) {
+    use rclash_sys_proxy::ProxyState;
+    let proxy = rclash_sys_proxy::current();
+    let addr = sys_proxy_addr();
+    let res = if enabled {
+        proxy.set(ProxyState::Enabled, &addr)
+    } else {
+        proxy.set(ProxyState::Disabled, &addr)
+    };
+    match res {
+        Ok(()) => log::info!("sys proxy enabled={enabled} {addr}"),
+        Err(e) => log::warn!("sys proxy failed: {e}"),
+    }
+}
+
+fn load_raw_proxies() -> Vec<ProxyItem> {
+    let mut items = Vec::new();
+    let Ok(conn) = rclash_db::open() else {
+        return items;
+    };
+    let Ok(keys) = rclash_db::list_raw_keys(&conn) else {
+        return items;
+    };
+    for k in keys {
+        let proxy_type = k.scheme.unwrap_or_else(|| "unknown".to_owned());
+        if !items.iter().any(|p: &ProxyItem| p.name == k.name) {
+            items.push(ProxyItem {
+                name: k.name,
+                proxy_type,
+                group: "PROXY".to_owned(),
+                delay: None,
+            });
+        }
+    }
+    items
+}
+
+fn active_db_content(active: &Option<String>) -> Option<(String, String)> {
+    let conn = rclash_db::open().ok()?;
+    if let Some(name) = active {
+        if let Ok(list) = rclash_db::list_configs(&conn) {
+            if let Some(c) = list.iter().find(|c| &c.name == name) {
+                return Some((c.name.clone(), c.content.clone()));
+            }
+        }
+    }
+    None
+}
+
+fn raw_keys_yaml_values() -> Vec<serde_yaml::Value> {
+    let Ok(conn) = rclash_db::open() else {
+        return Vec::new();
+    };
+    let Ok(keys) = rclash_db::list_raw_keys(&conn) else {
+        return Vec::new();
+    };
+    keys.iter()
+        .filter_map(|k| serde_yaml::from_str(&k.parsed_yaml).ok())
+        .collect()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -49,9 +161,9 @@ pub struct RClashApp {
     selected_group: String,
     proxies: Vec<ProxyItem>,
     selected_proxy: Option<String>,
-    selected_mode: String,
     proxy_enabled: bool,
     tun_enabled: bool,
+    tun_target: Option<bool>,
     core_enabled: bool,
     active_tab: Tab,
     config_content: String,
@@ -66,25 +178,34 @@ pub struct RClashApp {
     input_text: String,
     input_error: String,
     sub_fetch: Option<poll_promise::Promise<Result<(String, String), String>>>,
-    core_default_mode: String,
+    sub_url: Option<String>,
+    settings_error: Option<String>,
     core_mixed_port: String,
     core_socks_port: String,
     core_external_controller: String,
     core_keep_alive: String,
     core_geodata_loader: String,
-    dns_enable: bool,
-    dns_mode: String,
     dns_listen: String,
-    dns_ipv6: bool,
     dns_fakeip_range: String,
-    dns_nameservers_count: usize,
-    dns_fallback_count: usize,
-    net_bypass_count: usize,
-    net_append_system_dns: bool,
-    net_hosts_count: usize,
+    dns_nameservers_csv: String,
+    dns_fallback_csv: String,
+    hosts_text: String,
+    core_child: Option<std::process::Child>,
+    core_version: Option<String>,
+    core_error: Option<String>,
+    core_warning: Option<String>,
+    core_op: Option<poll_promise::Promise<CoreOpOutcome>>,
+    last_reconcile: std::time::Instant,
+    traffic_rx: Option<std::sync::mpsc::Receiver<TrafficSample>>,
+    traffic_stop: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    traffic_up: u64,
+    traffic_down: u64,
+    traffic_max: u64,
+    traffic_up_total: u64,
+    traffic_down_total: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ProxyItem {
     name: String,
     proxy_type: String,
@@ -188,62 +309,98 @@ fn log_entry_visible(source: LogSource, threshold: u8, entry: &crate::logger::Ap
     log_severity(&entry.level) >= threshold
 }
 
-fn mock_config_yaml() -> String {
-    "proxies:\n  - name: Germany02-Hysteria2\n    type: hysteria2\n    server: de01.skill-up.store\n    port: 8443\nproxy-groups:\n  - name: PROXY\n    type: select\n    proxies: [Germany02-Hysteria2]\nrules:\n  - MATCH,PROXY\n"
-        .to_owned()
+fn group_of(name: &str, groups_all: &std::collections::HashMap<String, Vec<String>>) -> String {
+    for (g, members) in groups_all {
+        if members.iter().any(|m| m == name) {
+            return g.clone();
+        }
+    }
+    "PROXY".to_owned()
 }
 
-fn mock_proxies() -> Vec<ProxyItem> {
-    vec![
-        ProxyItem {
-            name: "Germany02-Hysteria2".to_owned(),
-            proxy_type: "hysteria2".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: Some(59),
-        },
-        ProxyItem {
-            name: "Germany01-Hysteria2".to_owned(),
-            proxy_type: "hysteria2".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: Some(77),
-        },
-        ProxyItem {
-            name: "Germany01-Trojan".to_owned(),
-            proxy_type: "trojan".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: Some(76),
-        },
-        ProxyItem {
-            name: "Germany02-Trojan".to_owned(),
-            proxy_type: "trojan".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: None,
-        },
-        ProxyItem {
-            name: "Germani01-Vless".to_owned(),
-            proxy_type: "vless".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: None,
-        },
-        ProxyItem {
-            name: "Singapore01-Vmess".to_owned(),
-            proxy_type: "vmess".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: Some(142),
-        },
-        ProxyItem {
-            name: "Poland01-Shadowsocks".to_owned(),
-            proxy_type: "ss".to_owned(),
-            group: "PROXY".to_owned(),
-            delay: Some(88),
-        },
-        ProxyItem {
-            name: "Netherlands01-Hysteria2".to_owned(),
-            proxy_type: "hysteria2".to_owned(),
-            group: "Auto".to_owned(),
-            delay: Some(44),
-        },
-    ]
+fn parse_proxies_value(v: &serde_json::Value) -> (Vec<ProxyItem>, Vec<String>, Option<String>) {
+    let mut items = Vec::new();
+    let mut groups = Vec::new();
+    let mut now: Option<String> = None;
+    let mut groups_all: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    let Some(map) = v.get("proxies").and_then(|p| p.as_object()) else {
+        return (items, groups, now);
+    };
+    for (name, node) in map {
+        if name == "GLOBAL" {
+            continue;
+        }
+        if let Some(all) = node.get("all").and_then(|a| a.as_array()) {
+            let members: Vec<String> = all
+                .iter()
+                .filter_map(|m| m.as_str().map(str::to_owned))
+                .collect();
+            groups_all.insert(name.clone(), members);
+            if name == "PROXY" {
+                now = node.get("now").and_then(|n| n.as_str()).map(str::to_owned);
+            }
+            if !groups.contains(name) {
+                groups.push(name.clone());
+            }
+        }
+    }
+    if !groups.contains(&"PROXY".to_owned()) {
+        groups.insert(0, "PROXY".to_owned());
+    }
+    for (name, node) in map {
+        if name == "GLOBAL" || groups_all.contains_key(name) {
+            continue;
+        }
+        let node_type = node
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .to_owned();
+        match node_type.as_str() {
+            "" | "Direct" | "Reject" | "Compatible" | "Selector" | "URLTest" | "LoadBalance"
+            | "Relay" | "Fallback" => continue,
+            _ => {}
+        }
+        let delay = node
+            .get("history")
+            .and_then(|h| h.as_array())
+            .and_then(|h| h.last())
+            .and_then(|e| e.get("delay"))
+            .and_then(|d| d.as_u64())
+            .filter(|d| *d > 0);
+        items.push(ProxyItem {
+            name: name.clone(),
+            proxy_type: node_type.to_lowercase(),
+            group: group_of(name, &groups_all),
+            delay,
+        });
+    }
+    (items, groups, now)
+}
+
+fn extract_link_tokens(text: &str) -> Vec<String> {
+    let mut owned = text.to_owned();
+    if !owned.contains("://") {
+        if let Ok(decoded) = rclash_subscription::decode_base64_url_safe(text) {
+            if let Ok(s) = String::from_utf8(decoded) {
+                owned = s;
+            }
+        }
+    }
+    let mut toks = Vec::new();
+    for line in owned.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        for part in line.split_whitespace() {
+            if part.contains("://") {
+                toks.push(part.to_owned());
+            }
+        }
+    }
+    toks
 }
 
 fn proxy_item_from_value(v: &serde_yaml::Value) -> Option<ProxyItem> {
@@ -609,21 +766,37 @@ impl RClashApp {
             "Режим по умолчанию",
             None,
             |ui| {
-                let before = self.core_default_mode.clone();
+                let before = self.app_config.mode;
                 egui::ComboBox::from_id_salt("core_default_mode")
-                    .selected_text(egui::RichText::new(&before).size(11.0))
+                    .selected_text(egui::RichText::new(before.as_str()).size(11.0))
                     .width(90.0)
                     .show_ui(ui, |ui| {
-                        for m in ["rule", "global", "direct"] {
+                        for m in CoreMode::all() {
                             ui.selectable_value(
-                                &mut self.core_default_mode,
-                                m.to_owned(),
-                                egui::RichText::new(m).size(11.0),
+                                &mut self.app_config.mode,
+                                *m,
+                                egui::RichText::new(m.as_str()).size(11.0),
                             );
                         }
                     });
-                if self.core_default_mode != before {
-                    log::info!("default mode {}", self.core_default_mode);
+                if self.app_config.mode != before {
+                    let mode = self.app_config.mode;
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("default mode {}", mode.as_str());
+                    if self.core_child.is_some() && self.core_op.is_none() {
+                        let base = base_for_ops();
+                        let secret = secret_for_ops();
+                        let m = mode.as_str().to_owned();
+                        self.core_op = Some(poll_promise::Promise::spawn_thread(
+                            "core-mode",
+                            move || match rclash_core_manager::supervisor::set_mode_blocking(
+                                &base, &secret, &m,
+                            ) {
+                                Ok(()) => CoreOpOutcome::Done,
+                                Err(e) => CoreOpOutcome::Failed(format!("mode: {e}")),
+                            },
+                        ));
+                    }
                 }
             },
         );
@@ -633,9 +806,9 @@ impl RClashApp {
             "TUN",
             Some("Перехватывает весь трафик, требует прав администратора. Без него работает только системный прокси."),
             |ui| {
-                if ui.checkbox(&mut self.app_config.tun_enabled, "").changed() {
-                    let _ = rclash_config::save_app_config(&self.app_config);
-                    log::info!("tun_enabled {}", self.app_config.tun_enabled);
+                let mut v = self.tun_enabled;
+                if ui.checkbox(&mut v, "").changed() {
+                    self.set_tun_enabled(v);
                 }
             },
         );
@@ -650,6 +823,7 @@ impl RClashApp {
                     self.app_config.allow_lan = Some(v);
                     let _ = rclash_config::save_app_config(&self.app_config);
                     log::info!("allow_lan {v}");
+                    self.patch_core_live(serde_json::json!({"allow-lan": v}), "allow-lan");
                 }
             },
         );
@@ -664,6 +838,7 @@ impl RClashApp {
                     self.app_config.ipv6 = Some(v);
                     let _ = rclash_config::save_app_config(&self.app_config);
                     log::info!("ipv6 {v}");
+                    self.patch_core_live(serde_json::json!({"ipv6": v}), "ipv6");
                 }
             },
         );
@@ -671,13 +846,14 @@ impl RClashApp {
             ui,
             border,
             "Unified Delay",
-            Some("Одна проверка задержки на все группы — экономит время, но менее точно."),
+            Some("Одна проверка задержки на все группы — экономит время, но менее точно. Смена перезапускает ядро."),
             |ui| {
                 let mut v = self.app_config.unified_delay.unwrap_or(true);
                 if ui.checkbox(&mut v, "").changed() {
                     self.app_config.unified_delay = Some(v);
                     let _ = rclash_config::save_app_config(&self.app_config);
                     log::info!("unified_delay {v}");
+                    self.restart_core_if_running();
                 }
             },
         );
@@ -692,6 +868,10 @@ impl RClashApp {
                     self.app_config.tcp_concurrent = Some(v);
                     let _ = rclash_config::save_app_config(&self.app_config);
                     log::info!("tcp_concurrent {v}");
+                    self.patch_core_live(
+                        serde_json::json!({"tcp-concurrent": v}),
+                        "tcp-concurrent",
+                    );
                 }
             },
         );
@@ -699,16 +879,27 @@ impl RClashApp {
             ui,
             border,
             "Mixed Port",
-            Some("Единый порт для HTTP и SOCKS (0 — выкл). Обычно 7890."),
+            Some("Единый порт для HTTP и SOCKS (0 — выкл). Обычно 7890. Смена перезапускает ядро."),
             |ui| {
                 let resp = ui.add_sized(
                     [80.0, 22.0],
                     egui::TextEdit::singleline(&mut self.core_mixed_port),
                 );
                 if resp.changed() {
-                    if let Ok(v) = self.core_mixed_port.trim().parse::<u16>() {
-                        self.app_config.mixed_port = Some(v);
-                        let _ = rclash_config::save_app_config(&self.app_config);
+                    match rclash_config::validate_port_text(&self.core_mixed_port.clone()) {
+                        Some(v) => {
+                            self.settings_error = None;
+                            self.app_config.mixed_port = Some(v);
+                            let _ = rclash_config::save_app_config(&self.app_config);
+                            log::info!("mixed_port {v}");
+                            if self.proxy_enabled && self.core_child.is_some() {
+                                apply_sys_proxy_state(true);
+                            }
+                            self.restart_core_if_running();
+                        }
+                        None => {
+                            self.settings_error = Some("Mixed Port: число 0–65535".to_owned());
+                        }
                     }
                 }
             },
@@ -717,16 +908,24 @@ impl RClashApp {
             ui,
             border,
             "SOCKS Port",
-            Some("Отдельный SOCKS-порт (0 — выкл, используется Mixed)."),
+            Some("Отдельный SOCKS-порт (0 — выкл, используется Mixed). Смена перезапускает ядро."),
             |ui| {
                 let resp = ui.add_sized(
                     [80.0, 22.0],
                     egui::TextEdit::singleline(&mut self.core_socks_port),
                 );
                 if resp.changed() {
-                    if let Ok(v) = self.core_socks_port.trim().parse::<u16>() {
-                        self.app_config.socks_port = Some(v);
-                        let _ = rclash_config::save_app_config(&self.app_config);
+                    match rclash_config::validate_port_text(&self.core_socks_port.clone()) {
+                        Some(v) => {
+                            self.settings_error = None;
+                            self.app_config.socks_port = Some(v);
+                            let _ = rclash_config::save_app_config(&self.app_config);
+                            log::info!("socks_port {v}");
+                            self.restart_core_if_running();
+                        }
+                        None => {
+                            self.settings_error = Some("SOCKS Port: число 0–65535".to_owned());
+                        }
                     }
                 }
             },
@@ -735,16 +934,24 @@ impl RClashApp {
             ui,
             border,
             "External Controller",
-            Some("API ядра для управления (обычно 127.0.0.1:9090)."),
+            Some("API ядра для управления (обычно 127.0.0.1:9090). Смена перезапускает ядро."),
             |ui| {
                 let resp = ui.add_sized(
                     [120.0, 22.0],
                     egui::TextEdit::singleline(&mut self.core_external_controller),
                 );
                 if resp.changed() && !self.core_external_controller.trim().is_empty() {
-                    self.app_config.external_controller =
-                        Some(self.core_external_controller.trim().to_owned());
-                    let _ = rclash_config::save_app_config(&self.app_config);
+                    let v = self.core_external_controller.trim().to_owned();
+                    if rclash_config::validate_listen(&v) {
+                        self.settings_error = None;
+                        self.app_config.external_controller = Some(v.clone());
+                        let _ = rclash_config::save_app_config(&self.app_config);
+                        log::info!("external_controller {v}");
+                        self.restart_core_if_running();
+                    } else {
+                        self.settings_error =
+                            Some("External Controller: формат host:port".to_owned());
+                    }
                 }
             },
         );
@@ -752,7 +959,7 @@ impl RClashApp {
             ui,
             border,
             "Keep Alive",
-            Some("Интервал keep-alive в секундах для TCP."),
+            Some("Интервал keep-alive в секундах для TCP. Смена перезапускает ядро."),
             |ui| {
                 let resp = ui.add_sized(
                     [70.0, 22.0],
@@ -760,8 +967,13 @@ impl RClashApp {
                 );
                 if resp.changed() {
                     if let Ok(v) = self.core_keep_alive.trim().parse::<u32>() {
+                        self.settings_error = None;
                         self.app_config.keep_alive_interval = Some(v);
                         let _ = rclash_config::save_app_config(&self.app_config);
+                        log::info!("keep_alive {v}");
+                        self.restart_core_if_running();
+                    } else {
+                        self.settings_error = Some("Keep Alive: число секунд".to_owned());
                     }
                 }
             },
@@ -770,7 +982,7 @@ impl RClashApp {
             ui,
             border,
             "Geodata Loader",
-            Some("Как грузить GeoIP/Geosite: Memory — меньше RAM, Standard — быстрее."),
+            Some("Как грузить GeoIP/Geosite: Memory — меньше RAM, Standard — быстрее. Смена перезапускает ядро."),
             |ui| {
                 let before = self.core_geodata_loader.clone();
                 egui::ComboBox::from_id_salt("core_geodata_loader")
@@ -789,6 +1001,38 @@ impl RClashApp {
                     self.app_config.geodata_loader = Some(self.core_geodata_loader.clone());
                     let _ = rclash_config::save_app_config(&self.app_config);
                     log::info!("geodata_loader {}", self.core_geodata_loader);
+                    self.restart_core_if_running();
+                }
+            },
+        );
+        settings_row(
+            ui,
+            border,
+            "Строгий режим геодаты",
+            Some("Выкл — правила со списками, которых нет в GeoSite/GeoIP, пропускаются с варнингом. Вкл — ядро не стартует с ошибкой."),
+            |ui| {
+                let mut v = self.app_config.geodata_strict;
+                if ui.checkbox(&mut v, "").changed() {
+                    self.app_config.geodata_strict = v;
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("geodata_strict {v}");
+                }
+            },
+        );
+        settings_row(
+            ui,
+            border,
+            "Обновить геодату",
+            Some("Перекачать GeoSite.dat и GeoIP.dat с зеркала и перезапустить ядро."),
+            |ui| {
+                if ui
+                    .add_sized(
+                        [110.0, 22.0],
+                        egui::Button::new(egui::RichText::new("Обновить").size(11.0)),
+                    )
+                    .clicked()
+                {
+                    self.request_geodata_refresh();
                 }
             },
         );
@@ -800,10 +1044,14 @@ impl RClashApp {
             ui,
             border,
             "DNS Enable",
-            Some("Включать встроенный DNS ядра."),
+            Some("Включать встроенный DNS ядра. Смена применяется к ядру сразу."),
             |ui| {
-                if ui.checkbox(&mut self.dns_enable, "").changed() {
-                    log::info!("dns_enable {}", self.dns_enable);
+                let mut v = self.app_config.dns.enable;
+                if ui.checkbox(&mut v, "").changed() {
+                    self.app_config.dns.enable = v;
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("dns_enable {v}");
+                    self.rebuild_and_reload("dns");
                 }
             },
         );
@@ -813,21 +1061,32 @@ impl RClashApp {
             "Режим",
             Some("FakeIP — выдаёт виртуальные IP и резолвит по запросу; RedirHost — подмена Host."),
             |ui| {
-                let before = self.dns_mode.clone();
+                let before = self.app_config.dns.ui_mode().to_owned();
                 egui::ComboBox::from_id_salt("dns_mode")
                     .selected_text(egui::RichText::new(&before).size(11.0))
                     .width(90.0)
                     .show_ui(ui, |ui| {
                         for m in ["FakeIP", "RedirHost"] {
-                            ui.selectable_value(
-                                &mut self.dns_mode,
-                                m.to_owned(),
-                                egui::RichText::new(m).size(11.0),
-                            );
+                            let mut selected = before == m;
+                            if ui
+                                .selectable_label(selected, egui::RichText::new(m).size(11.0))
+                                .clicked()
+                            {
+                                selected = true;
+                            }
+                            if selected && before != m {
+                                self.app_config.dns.enhanced_mode = if m == "RedirHost" {
+                                    "redir-host".to_owned()
+                                } else {
+                                    "fake-ip".to_owned()
+                                };
+                            }
                         }
                     });
-                if self.dns_mode != before {
-                    log::info!("dns_mode {}", self.dns_mode);
+                if self.app_config.dns.ui_mode() != before {
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("dns_mode {}", self.app_config.dns.enhanced_mode);
+                    self.rebuild_and_reload("dns");
                 }
             },
         );
@@ -837,10 +1096,22 @@ impl RClashApp {
             "Listen",
             Some("Адрес:порт DNS сервера, например 0.0.0.0:1053."),
             |ui| {
-                ui.add_sized(
+                let resp = ui.add_sized(
                     [120.0, 22.0],
                     egui::TextEdit::singleline(&mut self.dns_listen),
                 );
+                if resp.changed() {
+                    let v = self.dns_listen.clone();
+                    if rclash_config::validate_listen(&v) {
+                        self.settings_error = None;
+                        self.app_config.dns.listen = v.trim().to_owned();
+                        let _ = rclash_config::save_app_config(&self.app_config);
+                        log::info!("dns_listen {}", self.app_config.dns.listen);
+                        self.rebuild_and_reload("dns");
+                    } else {
+                        self.settings_error = Some("DNS Listen: формат host:port".to_owned());
+                    }
+                }
             },
         );
         settings_row(
@@ -849,8 +1120,12 @@ impl RClashApp {
             "DNS IPv6 (AAAA)",
             Some("Отвечать AAAA записями (разрешение IPv6)."),
             |ui| {
-                if ui.checkbox(&mut self.dns_ipv6, "").changed() {
-                    log::info!("dns_ipv6 {}", self.dns_ipv6);
+                let mut v = self.app_config.dns.ipv6;
+                if ui.checkbox(&mut v, "").changed() {
+                    self.app_config.dns.ipv6 = v;
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("dns_ipv6 {v}");
+                    self.rebuild_and_reload("dns");
                 }
             },
         );
@@ -860,29 +1135,50 @@ impl RClashApp {
             "FakeIP Range",
             Some("Диапазон фейк-IP, например 198.18.0.1/16."),
             |ui| {
-                ui.add_sized(
+                let resp = ui.add_sized(
                     [120.0, 22.0],
                     egui::TextEdit::singleline(&mut self.dns_fakeip_range),
                 );
+                if resp.changed() {
+                    let v = self.dns_fakeip_range.clone();
+                    if rclash_config::validate_cidr(&v) {
+                        self.settings_error = None;
+                        self.app_config.dns.fake_ip_range = v.trim().to_owned();
+                        let _ = rclash_config::save_app_config(&self.app_config);
+                        log::info!("dns_fakeip {}", self.app_config.dns.fake_ip_range);
+                        self.rebuild_and_reload("dns");
+                    } else {
+                        self.settings_error = Some("FakeIP Range: формат ip/маска".to_owned());
+                    }
+                }
             },
         );
         settings_row(
             ui,
             border,
             "Nameserver",
-            Some("Основные резолверы (список)."),
+            Some("Основные резолверы через запятую, например 223.5.5.5, 8.8.8.8."),
             |ui| {
-                if ui
-                    .add_sized(
-                        [64.0, 22.0],
-                        egui::Button::new(
-                            egui::RichText::new(format!("{} ✎", self.dns_nameservers_count))
-                                .size(11.0),
-                        ),
-                    )
-                    .clicked()
-                {
-                    log::info!("edit nameservers");
+                let resp = ui.add_sized(
+                    [180.0, 22.0],
+                    egui::TextEdit::singleline(&mut self.dns_nameservers_csv),
+                );
+                if resp.changed() {
+                    let list =
+                        rclash_config::parse_nameserver_list(&self.dns_nameservers_csv.clone());
+                    if list.is_empty() {
+                        self.settings_error =
+                            Some("Nameserver: нужен хотя бы один адрес".to_owned());
+                    } else {
+                        self.settings_error = None;
+                        self.app_config.dns.nameservers = list;
+                        let _ = rclash_config::save_app_config(&self.app_config);
+                        log::info!(
+                            "dns_nameservers {}",
+                            self.app_config.dns.nameservers.join(",")
+                        );
+                        self.rebuild_and_reload("dns");
+                    }
                 }
             },
         );
@@ -890,19 +1186,20 @@ impl RClashApp {
             ui,
             border,
             "Fallback",
-            Some("Резервные резолверы, если основные не ответили."),
+            Some("Резервные резолверы через запятую, если основные не ответили. Пусто — без fallback."),
             |ui| {
-                if ui
-                    .add_sized(
-                        [64.0, 22.0],
-                        egui::Button::new(
-                            egui::RichText::new(format!("{} ✎", self.dns_fallback_count))
-                                .size(11.0),
-                        ),
-                    )
-                    .clicked()
-                {
-                    log::info!("edit fallback");
+                let resp = ui.add_sized(
+                    [180.0, 22.0],
+                    egui::TextEdit::singleline(&mut self.dns_fallback_csv),
+                );
+                if resp.changed() {
+                    let list =
+                        rclash_config::parse_nameserver_list(&self.dns_fallback_csv.clone());
+                    self.settings_error = None;
+                    self.app_config.dns.fallback = list;
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("dns_fallback {}", self.app_config.dns.fallback.join(","));
+                    self.rebuild_and_reload("dns");
                 }
             },
         );
@@ -913,49 +1210,21 @@ impl RClashApp {
         settings_row(
             ui,
             border,
-            "Bypass Domain",
-            Some("Домены мимо прокси (прямое соединение)."),
-            |ui| {
-                if ui
-                    .add_sized(
-                        [64.0, 22.0],
-                        egui::Button::new(
-                            egui::RichText::new(format!("{} ✎", self.net_bypass_count)).size(11.0),
-                        ),
-                    )
-                    .clicked()
-                {
-                    log::info!("edit bypass domains");
-                }
-            },
-        );
-        settings_row(
-            ui,
-            border,
-            "Append System DNS",
-            Some("Добавлять системные DNS к списку резолверов."),
-            |ui| {
-                if ui.checkbox(&mut self.net_append_system_dns, "").changed() {
-                    log::info!("append_system_dns {}", self.net_append_system_dns);
-                }
-            },
-        );
-        settings_row(
-            ui,
-            border,
             "Hosts",
-            Some("Статические записи hosts (домен — IP)."),
+            Some("Статические записи hosts — по одной на строку: домен = IP. Применяется к ядру сразу."),
             |ui| {
-                if ui
-                    .add_sized(
-                        [64.0, 22.0],
-                        egui::Button::new(
-                            egui::RichText::new(format!("{} ✎", self.net_hosts_count)).size(11.0),
-                        ),
-                    )
-                    .clicked()
-                {
-                    log::info!("edit hosts");
+                let resp = ui.add_sized(
+                    [220.0, 66.0],
+                    egui::TextEdit::multiline(&mut self.hosts_text)
+                        .hint_text("example.com = 1.2.3.4"),
+                );
+                if resp.changed() {
+                    let hosts =
+                        rclash_config::parse_hosts_text(&self.hosts_text.clone());
+                    self.app_config.hosts = hosts;
+                    let _ = rclash_config::save_app_config(&self.app_config);
+                    log::info!("hosts {} entries", self.app_config.hosts.len());
+                    self.rebuild_and_reload("hosts");
                 }
             },
         );
@@ -964,13 +1233,34 @@ impl RClashApp {
 
 impl RClashApp {
     pub fn new(cc: &eframe::CreationContext<'_>, tray: Option<crate::tray::TrayHandle>) -> Self {
-        let app_config = rclash_config::load_app_config();
+        let mut app_config = rclash_config::load_app_config();
         cc.egui_ctx.set_visuals(theme_visuals(app_config.theme));
         setup_fonts(&cc.egui_ctx);
+        if let Ok(conn) = rclash_db::open() {
+            if rclash_db::migration_needed(&conn).unwrap_or(false) {
+                match rclash_db::migrate_from_files(&conn) {
+                    Ok(n) => log::info!("migrated {n} legacy entries to db"),
+                    Err(e) => log::warn!("db migration failed: {e}"),
+                }
+            }
+        }
+        if let Err(e) = rclash_config::ensure_core_secret(&mut app_config) {
+            log::warn!("core secret init failed: {e}");
+        }
         let profile_store = rclash_config::profile::load_profile_store();
         let active_profile = profile_store.active.clone();
-        let groups = vec!["PROXY".to_owned(), "Germany".to_owned(), "Auto".to_owned()];
-        let proxies = mock_proxies();
+        let proxies = load_raw_proxies();
+        let mut groups = vec!["PROXY".to_owned()];
+        for p in &proxies {
+            if p.group != "PROXY" && !groups.contains(&p.group) {
+                groups.push(p.group.clone());
+            }
+        }
+        let config_content = active_db_content(&active_profile)
+            .map(|(_, c)| c)
+            .unwrap_or_else(|| "# Нет активного профиля — добавь профиль через +\n".to_owned());
+        let proxy_enabled = app_config.proxy_enabled;
+        let tun_enabled = app_config.tun_enabled;
         let core_mixed_port = app_config
             .mixed_port
             .map(|p| p.to_string())
@@ -991,7 +1281,12 @@ impl RClashApp {
             .geodata_loader
             .clone()
             .unwrap_or_else(|| "Memory".to_owned());
-        Self {
+        let dns_listen = app_config.dns.listen.clone();
+        let dns_fakeip_range = app_config.dns.fake_ip_range.clone();
+        let dns_nameservers_csv = app_config.dns.nameservers.join(", ");
+        let dns_fallback_csv = app_config.dns.fallback.join(", ");
+        let hosts_text = rclash_config::hosts_to_text(&app_config.hosts);
+        let mut app = Self {
             app_config,
             tray,
             profile_store,
@@ -1000,13 +1295,13 @@ impl RClashApp {
             groups,
             selected_group: "Все группы".to_owned(),
             proxies,
-            selected_proxy: Some("Germany02-Hysteria2".to_owned()),
-            selected_mode: "rule".to_owned(),
-            proxy_enabled: true,
-            tun_enabled: false,
+            selected_proxy: None,
+            proxy_enabled,
+            tun_enabled,
+            tun_target: None,
             core_enabled: false,
             active_tab: Tab::Dashboard,
-            config_content: mock_config_yaml(),
+            config_content,
             config_interval: UpdateInterval::Auto,
             log_level: LogLevel::Info,
             log_source: LogSource::All,
@@ -1018,23 +1313,37 @@ impl RClashApp {
             input_text: String::new(),
             input_error: String::new(),
             sub_fetch: None,
-            core_default_mode: "rule".to_owned(),
+            sub_url: None,
+            settings_error: None,
             core_mixed_port,
             core_socks_port,
             core_external_controller,
             core_keep_alive,
             core_geodata_loader,
-            dns_enable: true,
-            dns_mode: "FakeIP".to_owned(),
-            dns_listen: "0.0.0.0:1053".to_owned(),
-            dns_ipv6: false,
-            dns_fakeip_range: "198.18.0.1/16".to_owned(),
-            dns_nameservers_count: 0,
-            dns_fallback_count: 0,
-            net_bypass_count: 0,
-            net_append_system_dns: false,
-            net_hosts_count: 0,
+            dns_listen,
+            dns_fakeip_range,
+            dns_nameservers_csv,
+            dns_fallback_csv,
+            hosts_text,
+            core_child: None,
+            core_version: None,
+            core_error: None,
+            core_warning: None,
+            core_op: None,
+            last_reconcile: std::time::Instant::now(),
+            traffic_rx: None,
+            traffic_stop: None,
+            traffic_up: 0,
+            traffic_down: 0,
+            traffic_max: 0,
+            traffic_up_total: 0,
+            traffic_down_total: 0,
+        };
+        if app.app_config.master_enabled {
+            log::info!("autostart core (master was on)");
+            app.request_core_start();
         }
+        app
     }
 
     fn render_config_editor(&mut self, ui: &mut egui::Ui) {
@@ -1080,7 +1389,47 @@ impl RClashApp {
                 .stroke(egui::Stroke::new(1.0_f32, NEKO_ACCENT))
                 .corner_radius(egui::CornerRadius::same(R6));
                 if ui.add_sized([90.0, 22.0], save_btn).clicked() {
-                    log::info!("config save");
+                    match self.active_profile.clone() {
+                        Some(name) => {
+                            let content = self.config_content.clone();
+                            match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+                                Ok(_) => {
+                                    if let Ok(conn) = rclash_db::open() {
+                                        let _ = rclash_db::update_content(
+                                            &conn, &name, &content,
+                                        );
+                                    }
+                                    log::info!("config saved {name}");
+                                    if self.core_child.is_some() && self.core_op.is_none() {
+                                        match self.build_runtime() {
+                                            Ok(_) => {
+                                                let base = base_for_ops();
+                                                let secret = secret_for_ops();
+                                                self.core_op = Some(
+                                                    poll_promise::Promise::spawn_thread(
+                                                        "core-reload",
+                                                        move || {
+                                                            match rclash_core_manager::supervisor::reload_blocking(
+                                                                                &base, &secret,
+                                                                            ) {
+                                                                Ok(()) => CoreOpOutcome::Done,
+                                                                Err(e) => CoreOpOutcome::Failed(
+                                                                    format!("reload: {e}"),
+                                                                ),
+                                                            }
+                                                        },
+                                                    ),
+                                                );
+                                            }
+                                            Err(e) => log::error!("runtime rebuild: {e}"),
+                                        }
+                                    }
+                                }
+                                Err(e) => log::error!("config invalid yaml: {e}"),
+                            }
+                        }
+                        None => log::warn!("config save: no active profile"),
+                    }
                 }
                 if ui
                     .add_sized(
@@ -1089,7 +1438,9 @@ impl RClashApp {
                     )
                     .clicked()
                 {
-                    self.config_content = mock_config_yaml();
+                    self.config_content = active_db_content(&self.active_profile)
+                        .map(|(_, c)| c)
+                        .unwrap_or_else(|| "# Нет активного профиля — добавь профиль через +\n".to_owned());
                 }
                 if ui
                     .add_sized(
@@ -1098,7 +1449,16 @@ impl RClashApp {
                     )
                     .clicked()
                 {
-                    log::info!("config open in editor");
+                    let path = std::env::temp_dir().join("rclash-config-edit.yaml");
+                    match std::fs::write(&path, self.config_content.as_bytes()) {
+                        Ok(()) => {
+                            log::info!("config opened {}", path.display());
+                            if let Err(e) = open::that(&path) {
+                                log::error!("open editor: {e}");
+                            }
+                        }
+                        Err(e) => log::error!("config tmp write: {e}"),
+                    }
                 }
             });
         });
@@ -1343,13 +1703,41 @@ impl RClashApp {
     }
 
     fn add_raw_proxies(&mut self, text: &str) -> usize {
-        let parsed = rclash_subscription::parse_text_links(text).unwrap_or_default();
         let mut added = 0;
-        for v in &parsed {
+        let tokens = extract_link_tokens(text);
+        let source: Vec<(String, serde_yaml::Value)> = if tokens.is_empty() {
+            rclash_subscription::parse_text_links(text)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|v| (String::new(), v))
+                .collect()
+        } else {
+            tokens
+                .into_iter()
+                .filter_map(|t| rclash_subscription::parse_raw_link(&t).ok().map(|v| (t, v)))
+                .collect()
+        };
+        let db_ok = rclash_db::open();
+        for (raw, v) in &source {
             if let Some(item) = proxy_item_from_value(v) {
                 if !self.proxies.iter().any(|p| p.name == item.name) {
-                    self.proxies.push(item);
+                    self.proxies.push(item.clone());
                     added += 1;
+                }
+                if let Ok(ref conn) = db_ok {
+                    let dump = serde_yaml::to_string(v).unwrap_or_default();
+                    let raw_text = if raw.is_empty() {
+                        dump.trim()
+                    } else {
+                        raw.as_str()
+                    };
+                    let _ = rclash_db::add_raw_key(
+                        conn,
+                        raw_text,
+                        Some(item.proxy_type.as_str()),
+                        &item.name,
+                        dump.trim(),
+                    );
                 }
             }
         }
@@ -1369,6 +1757,7 @@ impl RClashApp {
             let url = t.to_owned();
             let name = profile_name_from_url(&url, suggested_name);
             self.input_error = "Загрузка…".to_owned();
+            self.sub_url = Some(url.clone());
             self.sub_fetch = Some(poll_promise::Promise::spawn_thread(
                 "fetch-subscription",
                 move || fetch_subscription(url, name),
@@ -1382,17 +1771,23 @@ impl RClashApp {
             } else {
                 log::info!("raw keys added {added}");
                 self.close_input();
+                self.restart_core_if_running();
             }
             return;
         }
         match rclash_config::profile::import_profile_content(t, suggested_name) {
             Ok(profile) => {
+                if let Ok(conn) = rclash_db::open() {
+                    let _ = rclash_db::save_config(&conn, &profile.name, None, t);
+                }
                 self.profile_store.add_or_replace(profile.clone());
                 self.active_profile = Some(profile.name.clone());
                 self.profile_store.active = Some(profile.name.clone());
                 let _ = rclash_config::profile::save_profile_store(&self.profile_store);
+                self.config_content = t.to_owned();
                 log::info!("profile imported {}", profile.name);
                 self.close_input();
+                self.restart_core_if_running();
             }
             Err(_) => {
                 self.input_error = "Не распознано".to_owned();
@@ -1410,6 +1805,485 @@ impl RClashApp {
         self.process_text(&text, fallback);
     }
 
+    fn build_runtime(&self) -> anyhow::Result<(std::path::PathBuf, std::path::PathBuf)> {
+        let cfg = rclash_config::load_app_config();
+        let secret = cfg.core_secret.clone().unwrap_or_default();
+        let raw_extras = raw_keys_yaml_values();
+        let base = match active_db_content(&self.active_profile) {
+            Some((_, content)) => {
+                if raw_extras.is_empty() {
+                    content
+                } else {
+                    rclash_config::runtime::merge_extra_proxies(&content, &raw_extras)
+                        .unwrap_or(content)
+                }
+            }
+            None => {
+                if raw_extras.is_empty() {
+                    anyhow::bail!("нет активного профиля и нет сырых ключей");
+                }
+                rclash_config::runtime::build_raw_keys_config(&raw_extras)?
+            }
+        };
+        let patched = rclash_config::runtime::assemble_runtime_config(&base, &cfg, &secret)?;
+        let dir = rclash_config::runtime::ensure_runtime_dir()?;
+        let file = rclash_config::runtime::write_runtime_config(&patched)?;
+        Ok((dir, file))
+    }
+
+    fn request_core_start(&mut self) {
+        if self.core_op.is_some() || self.core_child.is_some() {
+            return;
+        }
+        self.core_error = None;
+        self.core_warning = None;
+        let (dir, file) = match self.build_runtime() {
+            Ok(v) => v,
+            Err(e) => {
+                self.core_error = Some(format!("{e}"));
+                log::error!("core start: {e}");
+                return;
+            }
+        };
+        let binary = match rclash_core_manager::resolve_core_path() {
+            Some(p) => p,
+            None => {
+                let e = "ядро не найдено рядом с приложением";
+                self.core_error = Some(e.to_owned());
+                log::error!("core start: {e}");
+                return;
+            }
+        };
+        let secret = secret_for_ops();
+        let base = base_for_ops();
+        let tun = rclash_config::load_app_config().tun_enabled;
+        log::info!("core starting {}", binary.display());
+        self.core_op = Some(poll_promise::Promise::spawn_thread(
+            "core-start",
+            move || {
+                if let Err(e) = rclash_updater::geodata::ensure_geodata(&dir, false) {
+                    log::warn!("geodata ensure: {e}");
+                }
+                let strict = rclash_config::load_app_config().geodata_strict;
+                let mut stripped: Vec<String> = Vec::new();
+                for _ in 0..60 {
+                    match rclash_core_manager::supervisor::precheck(&binary, &dir, &file) {
+                        Ok(()) => break,
+                        Err(e) => {
+                            let msg = e.to_string();
+                            if strict {
+                                return CoreOpOutcome::Failed(msg);
+                            }
+                            let missing: Vec<(String, String)> =
+                                rclash_config::runtime::parse_missing_geodata(&msg)
+                                    .into_iter()
+                                    .filter(|(_, n)| !stripped.iter().any(|s| s == n))
+                                    .collect();
+                            if missing.is_empty() {
+                                return CoreOpOutcome::Failed(msg);
+                            }
+                            let content = match std::fs::read_to_string(&file) {
+                                Ok(c) => c,
+                                Err(e) => return CoreOpOutcome::Failed(format!("{e}")),
+                            };
+                            match rclash_config::runtime::strip_missing_geodata_rules(
+                                &content, &missing,
+                            ) {
+                                Ok((next, removed)) if removed > 0 => {
+                                    if std::fs::write(&file, next.as_bytes()).is_err() {
+                                        return CoreOpOutcome::Failed(msg);
+                                    }
+                                    for (_, n) in &missing {
+                                        log::info!("geodata: skip missing list {n}");
+                                        stripped.push(n.clone());
+                                    }
+                                }
+                                _ => return CoreOpOutcome::Failed(msg),
+                            }
+                        }
+                    }
+                }
+                if tun {
+                    if let Err(e) = rclash_tun::enable() {
+                        return CoreOpOutcome::Failed(format!("tun: {e}"));
+                    }
+                }
+                let warning = if stripped.is_empty() {
+                    None
+                } else {
+                    stripped.sort();
+                    stripped.dedup();
+                    Some(format!(
+                        "геодата: пропущено правил: {} ({})",
+                        stripped.len(),
+                        stripped.join(", ")
+                    ))
+                };
+                match rclash_core_manager::supervisor::spawn_and_wait(
+                    &binary, &dir, &file, &base, &secret,
+                ) {
+                    Ok((child, version)) => CoreOpOutcome::Started {
+                        version,
+                        child,
+                        warning,
+                    },
+                    Err(e) => CoreOpOutcome::Failed(format!("{e}")),
+                }
+            },
+        ));
+    }
+
+    fn request_geodata_refresh(&mut self) {
+        if self.core_op.is_some() {
+            return;
+        }
+        let Some(home) = rclash_config::runtime::runtime_dir() else {
+            self.core_error = Some("нет каталога runtime".to_owned());
+            return;
+        };
+        self.core_error = None;
+        self.core_warning = None;
+        log::info!("geodata refresh requested");
+        self.core_op = Some(poll_promise::Promise::spawn_thread(
+            "geodata-refresh",
+            move || {
+                let (site, ip) = rclash_updater::geodata::geodata_paths(&home);
+                let _ = std::fs::remove_file(site);
+                let _ = std::fs::remove_file(ip);
+                match rclash_updater::geodata::ensure_geodata(&home, true) {
+                    Ok(_) => CoreOpOutcome::GeodataDone,
+                    Err(e) => CoreOpOutcome::Failed(format!("геодата: {e}")),
+                }
+            },
+        ));
+    }
+
+    fn stop_traffic(&mut self) {
+        if let Some(flag) = self.traffic_stop.take() {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.traffic_rx = None;
+    }
+
+    fn stop_core_now(&mut self) {
+        rclash_core_manager::supervisor::stop_child(&mut self.core_child);
+        self.stop_traffic();
+        self.core_version = None;
+        self.traffic_up = 0;
+        self.traffic_down = 0;
+    }
+
+    fn request_core_stop(&mut self) {
+        let tun_was_on = self.app_config.tun_enabled;
+        self.stop_core_now();
+        self.core_enabled = false;
+        self.app_config.master_enabled = false;
+        let _ = rclash_config::save_app_config(&self.app_config);
+        if self.proxy_enabled {
+            apply_sys_proxy_state(false);
+        }
+        if tun_was_on {
+            std::thread::spawn(|| {
+                if let Err(e) = rclash_tun::disable() {
+                    log::warn!("tun down on stop: {e}");
+                }
+            });
+        }
+        log::info!("core stopped");
+    }
+
+    fn reconcile_core_state(&mut self) {
+        if !self.core_enabled || self.core_op.is_some() {
+            return;
+        }
+        if self.last_reconcile.elapsed() < std::time::Duration::from_secs(2) {
+            return;
+        }
+        self.last_reconcile = std::time::Instant::now();
+        if rclash_core_manager::supervisor::child_alive(&mut self.core_child) {
+            return;
+        }
+        self.stop_core_now();
+        self.core_enabled = false;
+        self.app_config.master_enabled = false;
+        let _ = rclash_config::save_app_config(&self.app_config);
+        if self.proxy_enabled {
+            apply_sys_proxy_state(false);
+        }
+        self.core_error = Some("ядро неожиданно завершилось".to_owned());
+        log::error!("core process died");
+    }
+
+    fn patch_core_live(&mut self, body: serde_json::Value, what: &str) {
+        if self.core_child.is_none() || self.core_op.is_some() {
+            return;
+        }
+        let base = base_for_ops();
+        let secret = secret_for_ops();
+        let what = what.to_owned();
+        self.core_op = Some(poll_promise::Promise::spawn_thread(
+            "core-patch",
+            move || match rclash_core_manager::supervisor::patch_configs_blocking(
+                &base, &secret, &body,
+            ) {
+                Ok(()) => CoreOpOutcome::Done,
+                Err(e) => CoreOpOutcome::Failed(format!("{what}: {e}")),
+            },
+        ));
+    }
+
+    fn rebuild_and_reload(&mut self, what: &str) {
+        if self.core_child.is_none() || self.core_op.is_some() {
+            return;
+        }
+        match self.build_runtime() {
+            Ok(_) => {
+                let base = base_for_ops();
+                let secret = secret_for_ops();
+                let what = what.to_owned();
+                self.core_op = Some(poll_promise::Promise::spawn_thread(
+                    "core-reload",
+                    move || match rclash_core_manager::supervisor::reload_blocking(&base, &secret) {
+                        Ok(()) => CoreOpOutcome::Done,
+                        Err(e) => CoreOpOutcome::Failed(format!("{what}: {e}")),
+                    },
+                ));
+            }
+            Err(e) => {
+                self.core_error = Some(format!("{e}"));
+                log::error!("runtime rebuild: {e}");
+            }
+        }
+    }
+
+    fn set_mode(&mut self, mode: CoreMode) {
+        self.app_config.mode = mode;
+        let _ = rclash_config::save_app_config(&self.app_config);
+        log::info!("mode {}", mode.as_str());
+        if self.core_child.is_some() && self.core_op.is_none() {
+            let base = base_for_ops();
+            let secret = secret_for_ops();
+            let m = mode.as_str().to_owned();
+            self.core_op = Some(poll_promise::Promise::spawn_thread(
+                "core-mode",
+                move || match rclash_core_manager::supervisor::set_mode_blocking(&base, &secret, &m)
+                {
+                    Ok(()) => CoreOpOutcome::Done,
+                    Err(e) => CoreOpOutcome::Failed(format!("mode: {e}")),
+                },
+            ));
+        }
+    }
+
+    fn set_tun_enabled(&mut self, on: bool) {
+        if self.tun_enabled == on && self.app_config.tun_enabled == on {
+            return;
+        }
+        self.tun_enabled = on;
+        self.app_config.tun_enabled = on;
+        let _ = rclash_config::save_app_config(&self.app_config);
+        log::info!("tun {on}");
+        if self.core_child.is_some() && self.core_op.is_none() {
+            self.tun_target = Some(on);
+            self.core_op = Some(poll_promise::Promise::spawn_thread(
+                "tun-helper",
+                move || {
+                    let r = if on {
+                        rclash_tun::enable()
+                    } else {
+                        rclash_tun::disable()
+                    };
+                    match r {
+                        Ok(()) => CoreOpOutcome::TunApplied { enabled: on },
+                        Err(e) => CoreOpOutcome::TunFailed {
+                            target: on,
+                            message: format!("tun: {e}"),
+                        },
+                    }
+                },
+            ));
+        } else {
+            self.tun_target = None;
+        }
+    }
+
+    fn restart_core_if_running(&mut self) {
+        if self.core_child.is_some() || self.core_op.is_some() {
+            self.stop_core_now();
+            self.request_core_start();
+        }
+    }
+
+    fn start_traffic(&mut self) {
+        self.stop_traffic();
+        let (tx, rx) = std::sync::mpsc::channel::<TrafficSample>();
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let stop_flag = stop.clone();
+        let secret = secret_for_ops();
+        let base = base_for_ops();
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::builder().build();
+            let Ok(client) = client else { return };
+            let mut req = client.get(format!("{base}/traffic"));
+            if !secret.is_empty() {
+                req = req.header("Authorization", format!("Bearer {secret}"));
+            }
+            let Ok(resp) = req.send() else { return };
+            use std::io::BufRead;
+            let mut reader = std::io::BufReader::new(resp);
+            let mut line = String::new();
+            loop {
+                if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                line.clear();
+                match reader.read_line(&mut line) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+                if let Ok(info) =
+                    serde_json::from_str::<rclash_core_manager::api::TrafficInfo>(line.trim())
+                {
+                    let sample = TrafficSample {
+                        up: info.up,
+                        down: info.down,
+                        up_total: info.up_total,
+                        down_total: info.down_total,
+                    };
+                    if tx.send(sample).is_err() {
+                        break;
+                    }
+                }
+            }
+        });
+        self.traffic_rx = Some(rx);
+        self.traffic_stop = Some(stop);
+    }
+
+    fn refresh_proxies_from_core(&mut self) {
+        if self.core_op.is_some() {
+            return;
+        }
+        let base = base_for_ops();
+        let secret = secret_for_ops();
+        self.core_op = Some(poll_promise::Promise::spawn_thread(
+            "core-proxies",
+            move || match rclash_core_manager::supervisor::proxies_blocking(&base, &secret) {
+                Ok(v) => {
+                    let (items, groups, now) = parse_proxies_value(&v);
+                    let mode =
+                        rclash_core_manager::supervisor::get_configs_blocking(&base, &secret)
+                            .ok()
+                            .and_then(|c| {
+                                c.get("mode").and_then(|m| m.as_str()).map(str::to_owned)
+                            });
+                    CoreOpOutcome::Proxies {
+                        items,
+                        groups,
+                        mode,
+                        now,
+                    }
+                }
+                Err(e) => CoreOpOutcome::Failed(format!("proxies: {e}")),
+            },
+        ));
+    }
+
+    fn poll_core_op(&mut self) {
+        let ready = self.core_op.as_ref().is_some_and(|p| p.ready().is_some());
+        if !ready {
+            return;
+        }
+        let Some(p) = self.core_op.take() else {
+            return;
+        };
+        match p.block_and_take() {
+            CoreOpOutcome::Started {
+                version,
+                child,
+                warning,
+            } => {
+                self.core_child = Some(child);
+                self.core_version = Some(version.clone());
+                self.core_enabled = true;
+                self.app_config.master_enabled = true;
+                let _ = rclash_config::save_app_config(&self.app_config);
+                self.core_error = None;
+                self.core_warning = warning.clone();
+                log::info!("core started {version}");
+                if let Some(w) = &warning {
+                    log::warn!("{w}");
+                }
+                self.start_traffic();
+                if self.proxy_enabled {
+                    apply_sys_proxy_state(true);
+                }
+                self.refresh_proxies_from_core();
+            }
+            CoreOpOutcome::Proxies {
+                items,
+                groups,
+                mode,
+                now,
+            } => {
+                log::info!("proxies from core: {}", items.len());
+                self.proxies = items;
+                if !groups.is_empty() {
+                    self.groups = groups;
+                    if self.selected_group != "Все группы"
+                        && !self.groups.contains(&self.selected_group)
+                    {
+                        self.selected_group = "Все группы".to_owned();
+                    }
+                }
+                if let Some(m) = mode {
+                    if let Some(parsed) = CoreMode::from_str(&m) {
+                        if self.app_config.mode != parsed {
+                            self.app_config.mode = parsed;
+                            let _ = rclash_config::save_app_config(&self.app_config);
+                        }
+                    }
+                }
+                if let Some(n) = now {
+                    if self.proxies.iter().any(|p| p.name == n) {
+                        self.selected_proxy = Some(n);
+                    }
+                }
+                self.refresh_groups();
+            }
+            CoreOpOutcome::Delays { delays } => {
+                for (name, d) in delays {
+                    if let Some(p) = self.proxies.iter_mut().find(|p| p.name == name) {
+                        p.delay = d;
+                    }
+                }
+            }
+            CoreOpOutcome::Done => {}
+            CoreOpOutcome::GeodataDone => {
+                log::info!("geodata refreshed");
+                self.restart_core_if_running();
+            }
+            CoreOpOutcome::TunApplied { enabled } => {
+                self.tun_target = None;
+                log::info!("tun helper applied {enabled}");
+                self.restart_core_if_running();
+            }
+            CoreOpOutcome::TunFailed { target, message } => {
+                self.tun_target = None;
+                self.tun_enabled = !target;
+                self.app_config.tun_enabled = !target;
+                let _ = rclash_config::save_app_config(&self.app_config);
+                self.core_error = Some(message.clone());
+                log::error!("tun helper failed: {message}");
+            }
+            CoreOpOutcome::Failed(e) => {
+                self.core_error = Some(e.clone());
+                self.core_enabled = false;
+                log::error!("core op failed: {e}");
+            }
+        }
+    }
+
     fn poll_sub_fetch(&mut self) {
         let ready = self.sub_fetch.as_ref().is_some_and(|p| p.ready().is_some());
         if !ready {
@@ -1419,19 +2293,30 @@ impl RClashApp {
             match p.block_and_take() {
                 Ok((name, content)) => {
                     let content = content.clone();
+                    let url = self.sub_url.take();
                     if content.contains("proxies:")
                         || rclash_subscription::detect_format(&content)
                             == rclash_subscription::DetectedFormat::Yaml
                     {
                         match rclash_config::profile::import_profile_content(&content, &name) {
                             Ok(profile) => {
+                                if let Ok(conn) = rclash_db::open() {
+                                    let _ = rclash_db::save_config(
+                                        &conn,
+                                        &profile.name,
+                                        url.as_deref(),
+                                        &content,
+                                    );
+                                }
                                 self.profile_store.add_or_replace(profile.clone());
                                 self.active_profile = Some(profile.name.clone());
                                 self.profile_store.active = Some(profile.name.clone());
                                 let _ =
                                     rclash_config::profile::save_profile_store(&self.profile_store);
+                                self.config_content = content.clone();
                                 log::info!("subscription imported {}", profile.name);
                                 self.close_input();
+                                self.restart_core_if_running();
                             }
                             Err(e) => {
                                 self.input_error = format!("Профиль: {e}");
@@ -1542,7 +2427,7 @@ impl RClashApp {
         let card_fill = card_fill_for(theme);
         let border = border_color_for(theme);
         let profiles = self.profile_store.profiles.clone();
-        let raw_keys = self.proxies.clone();
+        let raw_keys = load_raw_proxies();
 
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
@@ -1738,17 +2623,31 @@ impl RClashApp {
             });
         if let Some(name) = to_delete_profile {
             if self.profile_store.remove(&name) {
+                if let Ok(conn) = rclash_db::open() {
+                    let _ = rclash_db::delete_config(&conn, &name);
+                }
                 if self.active_profile.as_deref() == Some(&name) {
                     self.active_profile = self.profile_store.active.clone();
+                    self.config_content = active_db_content(&self.active_profile)
+                        .map(|(_, c)| c)
+                        .unwrap_or_else(|| {
+                            "# Нет активного профиля — добавь профиль через +\n".to_owned()
+                        });
                 }
                 let _ = rclash_config::profile::save_profile_store(&self.profile_store);
                 log::info!("profile deleted {name}");
+                self.restart_core_if_running();
             }
         }
         if let Some(i) = to_delete_raw {
-            if i < self.proxies.len() {
-                let removed = self.proxies.remove(i);
-                log::info!("raw key deleted {}", removed.name);
+            if let Some(target) = load_raw_proxies().get(i).cloned() {
+                if let Ok(conn) = rclash_db::open() {
+                    let _ = rclash_db::remove_raw_key_by_name(&conn, &target.name);
+                }
+                self.proxies.retain(|p| p.name != target.name);
+                self.refresh_groups();
+                log::info!("raw key deleted {}", target.name);
+                self.restart_core_if_running();
             }
         }
     }
@@ -1763,6 +2662,20 @@ impl RClashApp {
         ctx.set_style(style);
         let _ = rclash_config::save_app_config(&self.app_config);
         log::info!("theme changed to {:?}", theme);
+    }
+}
+
+impl Drop for RClashApp {
+    fn drop(&mut self) {
+        rclash_core_manager::supervisor::stop_child(&mut self.core_child);
+        apply_sys_proxy_state(false);
+        if self.app_config.tun_enabled
+            && matches!(rclash_tun::status(), rclash_tun::TunStatus::Enabled { .. })
+        {
+            if let Err(e) = rclash_tun::disable() {
+                log::warn!("tun down on exit: {e}");
+            }
+        }
     }
 }
 
@@ -1790,6 +2703,20 @@ impl eframe::App for RClashApp {
             self.add_menu_open = false;
         }
         self.poll_sub_fetch();
+        self.poll_core_op();
+        self.reconcile_core_state();
+        if let Some(rx) = &self.traffic_rx {
+            for s in rx.try_iter() {
+                self.traffic_up = s.up;
+                self.traffic_down = s.down;
+                self.traffic_up_total = s.up_total;
+                self.traffic_down_total = s.down_total;
+                self.traffic_max = self.traffic_max.max(s.up.saturating_add(s.down));
+            }
+        }
+        if self.core_child.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_secs(1));
+        }
 
         egui::CentralPanel::default()
             .frame(
@@ -1920,9 +2847,14 @@ impl eframe::App for RClashApp {
                                                         .color(NEKO_ACCENT),
                                                 );
                                                 ui.label(
-                                                    egui::RichText::new("↑ 0 B/s")
-                                                        .size(10.0)
-                                                        .weak(),
+                                                    egui::RichText::new(format!(
+                                                        "↑ {}/s",
+                                                        rclash_core_manager::api::format_bytes(
+                                                            self.traffic_up
+                                                        )
+                                                    ))
+                                                    .size(10.0)
+                                                    .weak(),
                                                 );
                                             });
                                             let after_left = ui.available_width();
@@ -1941,9 +2873,14 @@ impl eframe::App for RClashApp {
                                                         .color(NEKO_DELAY_FAST),
                                                 );
                                                 ui.label(
-                                                    egui::RichText::new("↓ 0 B/s")
-                                                        .size(10.0)
-                                                        .weak(),
+                                                    egui::RichText::new(format!(
+                                                        "↓ {}/s",
+                                                        rclash_core_manager::api::format_bytes(
+                                                            self.traffic_down
+                                                        )
+                                                    ))
+                                                    .size(10.0)
+                                                    .weak(),
                                                 );
                                             });
                                             ui.with_layout(
@@ -1952,9 +2889,20 @@ impl eframe::App for RClashApp {
                                                 ),
                                                 |ui| {
                                                     ui.label(
-                                                        egui::RichText::new("мах —")
-                                                            .size(10.0)
-                                                            .weak(),
+                                                        egui::RichText::new(if self.traffic_max
+                                                            > 0
+                                                        {
+                                                            format!(
+                                                                "мах {}",
+                                                                rclash_core_manager::api::format_bytes(
+                                                                    self.traffic_max
+                                                                )
+                                                            )
+                                                        } else {
+                                                            "мах —".to_owned()
+                                                        })
+                                                        .size(10.0)
+                                                        .weak(),
                                                     );
                                                 },
                                             );
@@ -1987,8 +2935,12 @@ impl eframe::App for RClashApp {
                                                         ),
                                                         |ui| {
                                                             ui.label(
-                                                                egui::RichText::new("0 В")
-                                                                    .size(11.0),
+                                                                egui::RichText::new(
+                                                                    rclash_core_manager::api::format_bytes(
+                                                                        self.traffic_down_total,
+                                                                    ),
+                                                                )
+                                                                .size(11.0),
                                                             );
                                                         },
                                                     );
@@ -2021,8 +2973,12 @@ impl eframe::App for RClashApp {
                                                         ),
                                                         |ui| {
                                                             ui.label(
-                                                                egui::RichText::new("0 В")
-                                                                    .size(11.0),
+                                                                egui::RichText::new(
+                                                                    rclash_core_manager::api::format_bytes(
+                                                                        self.traffic_up_total,
+                                                                    ),
+                                                                )
+                                                                .size(11.0),
                                                             );
                                                         },
                                                     );
@@ -2087,8 +3043,9 @@ impl eframe::App for RClashApp {
                                         ui.spacing_mut().item_spacing = egui::vec2(0.0, 8.0);
                                         ui.horizontal(|ui| {
                                             ui.spacing_mut().item_spacing = egui::vec2(4.5, 0.0);
-                                            for label in ["rule", "global", "direct"] {
-                                                let active = self.selected_mode == label;
+                                            for m in CoreMode::all() {
+                                                let label = m.as_str();
+                                                let active = self.app_config.mode == *m;
                                                 let fill = if active { NEKO_ACCENT } else { card_fill };
                                                 let txt_color = if active {
                                                     egui::Color32::WHITE
@@ -2115,7 +3072,7 @@ impl eframe::App for RClashApp {
                                                     )
                                                     .clicked()
                                                 {
-                                                    self.selected_mode = label.to_owned();
+                                                    self.set_mode(*m);
                                                 }
                                             }
                                         });
@@ -2153,6 +3110,13 @@ impl eframe::App for RClashApp {
                                                 .clicked()
                                             {
                                                 self.proxy_enabled = !self.proxy_enabled;
+                                                self.app_config.proxy_enabled = self.proxy_enabled;
+                                                let _ = rclash_config::save_app_config(
+                                                    &self.app_config,
+                                                );
+                                                if self.core_child.is_some() {
+                                                    apply_sys_proxy_state(self.proxy_enabled);
+                                                }
                                             }
                                             let tun_fill = if self.tun_enabled {
                                                 NEKO_ACCENT
@@ -2185,10 +3149,14 @@ impl eframe::App for RClashApp {
                                                 .add_sized(egui::vec2(147.0, 26.0), tun_btn)
                                                 .clicked()
                                             {
-                                                self.tun_enabled = !self.tun_enabled;
+                                                let next = !self.tun_enabled;
+                                                self.set_tun_enabled(next);
                                             }
                                         });
-                                        let (tgl_label, tgl_fill) = if self.core_enabled {
+                                        let tgl_busy = self.core_op.is_some();
+                                        let (tgl_label, tgl_fill) = if tgl_busy {
+                                            ("Запуск…", NEKO_ACCENT)
+                                        } else if self.core_enabled {
                                             ("ВКЛ • Выключить", NEKO_GREEN)
                                         } else {
                                             ("ВЫКЛ • Включить", NEKO_RED)
@@ -2201,8 +3169,38 @@ impl eframe::App for RClashApp {
                                         .fill(tgl_fill)
                                         .stroke(egui::Stroke::new(1.0_f32, tgl_fill))
                                         .corner_radius(egui::CornerRadius::same(R6));
-                                        if ui.add_sized(egui::vec2(297.0, 30.0), tgl_btn).clicked() {
-                                            self.core_enabled = !self.core_enabled;
+                                        if ui.add_sized(egui::vec2(297.0, 30.0), tgl_btn).clicked()
+                                        {
+                                            if tgl_busy {
+                                            } else if self.core_enabled {
+                                                self.request_core_stop();
+                                            } else {
+                                                self.request_core_start();
+                                            }
+                                        }
+                                        if let Some(e) = self.core_error.clone() {
+                                            ui.label(
+                                                egui::RichText::new(e).size(10.0).color(NEKO_RED),
+                                            );
+                                            let geo_btn = egui::Button::new(
+                                                egui::RichText::new("Обновить геодату").size(11.0),
+                                            )
+                                            .fill(card_fill)
+                                            .stroke(egui::Stroke::new(1.0_f32, border))
+                                            .corner_radius(egui::CornerRadius::same(R6));
+                                            if ui
+                                                .add_sized(egui::vec2(297.0, 22.0), geo_btn)
+                                                .clicked()
+                                            {
+                                                self.request_geodata_refresh();
+                                            }
+                                        }
+                                        if let Some(w) = self.core_warning.clone() {
+                                            ui.label(
+                                                egui::RichText::new(w)
+                                                    .size(10.0)
+                                                    .color(NEKO_DELAY_MID),
+                                            );
                                         }
                                     });
                                 });
@@ -2228,7 +3226,11 @@ impl eframe::App for RClashApp {
                                                     )
                                                     .size(11.0),
                                                 );
-                                                ui.add_space(8.0);
+        ui.add_space(8.0);
+        if let Some(e) = self.settings_error.clone() {
+            ui.label(egui::RichText::new(e).size(10.0).color(NEKO_RED));
+            ui.add_space(4.0);
+        }
                                                 ui.horizontal(|ui| {
                                             ui.spacing_mut().item_spacing =
                                                 egui::vec2(8.0, 0.0);
@@ -2345,10 +3347,18 @@ impl eframe::App for RClashApp {
                                                                 rclash_config::profile::save_profile_store(
                                                                     &self.profile_store,
                                                                 );
+                                                            if let Some((_, content)) =
+                                                                active_db_content(
+                                                                    &self.active_profile,
+                                                                )
+                                                            {
+                                                                self.config_content = content;
+                                                            }
                                                             log::info!(
                                                                 "profile selected {}",
                                                                 p.name
                                                             );
+                                                            self.restart_core_if_running();
                                                         }
                                                     }
                                                 }
@@ -2377,10 +3387,33 @@ impl eframe::App for RClashApp {
                                             .on_hover_text("Обновить")
                                             .clicked()
                                         {
-                                            log::info!(
-                                                "refresh profile {:?}",
-                                                self.active_profile
-                                            );
+                                            let url = self
+                                                .active_profile
+                                                .as_ref()
+                                                .and_then(|n| self.profile_store.find(n))
+                                                .and_then(|p| p.url.clone());
+                                            if let Some(url) = url {
+                                                let name = self
+                                                    .active_profile
+                                                    .clone()
+                                                    .unwrap_or_else(|| "subscription".to_owned());
+                                                self.input_error = String::new();
+                                                self.sub_url = Some(url.clone());
+                                                self.sub_fetch = Some(
+                                                    poll_promise::Promise::spawn_thread(
+                                                        "fetch-subscription",
+                                                        move || fetch_subscription(url, name),
+                                                    ),
+                                                );
+                                                log::info!("refresh subscription");
+                                            } else if self.core_child.is_some() {
+                                                self.refresh_proxies_from_core();
+                                            } else {
+                                                log::info!(
+                                                    "refresh profile {:?}",
+                                                    self.active_profile
+                                                );
+                                            }
                                         }
 
                                         let add_resp = ui
@@ -2455,10 +3488,43 @@ impl eframe::App for RClashApp {
                                             .on_hover_text("Пинг видимых")
                                             .clicked()
                                         {
-                                            log::info!(
-                                                "ping visible group {}",
-                                                self.selected_group
-                                            );
+                                            if self.core_child.is_none() {
+                                                log::info!("ping skipped: core not running");
+                                            } else if self.core_op.is_none() {
+                                                let names: Vec<String> = self
+                                                    .proxies
+                                                    .iter()
+                                                    .filter(|p| {
+                                                        self.selected_group == "Все группы"
+                                                            || p.group == self.selected_group
+                                                    })
+                                                    .map(|p| p.name.clone())
+                                                    .collect();
+                                                let secret = secret_for_ops();
+                                                let base = base_for_ops();
+                                                log::info!("ping {} visible", names.len());
+                                                self.core_op = Some(
+                                                    poll_promise::Promise::spawn_thread(
+                                                        "core-ping",
+                                                        move || {
+                                                            let delays = names
+                                                                .into_iter()
+                                                                .map(|n| {
+                                                                    let d = rclash_core_manager::supervisor::test_delay_blocking(
+                                                                        &base,
+                                                                        &secret,
+                                                                        &n,
+                                                                        "http://www.gstatic.com/generate_204",
+                                                                        5000,
+                                                                    );
+                                                                    (n, d)
+                                                                })
+                                                                .collect();
+                                                            CoreOpOutcome::Delays { delays }
+                                                        },
+                                                    ),
+                                                );
+                                            }
                                         }
                                     });
                                 });
@@ -2679,6 +3745,30 @@ impl eframe::App for RClashApp {
                                     if let Some(n) = to_select {
                                         self.selected_proxy = Some(n.clone());
                                         log::info!("proxy selected {}", n);
+                                        if self.core_child.is_some() && self.core_op.is_none() {
+                                            let group = if self.selected_group == "Все группы" {
+                                                "PROXY".to_owned()
+                                            } else {
+                                                self.selected_group.clone()
+                                            };
+                                            let secret = secret_for_ops();
+                                            let base = base_for_ops();
+                                            self.core_op = Some(
+                                                poll_promise::Promise::spawn_thread(
+                                                    "core-select",
+                                                    move || {
+                                                        match rclash_core_manager::supervisor::select_proxy_blocking(
+                                                            &base, &secret, &group, &n,
+                                                        ) {
+                                                            Ok(()) => CoreOpOutcome::Done,
+                                                            Err(e) => CoreOpOutcome::Failed(
+                                                                format!("select: {e}"),
+                                                            ),
+                                                        }
+                                                    },
+                                                ),
+                                            );
+                                        }
                                     }
                                     ui.add_space(6.0);
                                     let sep_w = ui.available_width();

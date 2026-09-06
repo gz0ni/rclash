@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=RClash
+Comment=RClash desktop proxy client, 100% mihomo compatible
+Exec=rclash
+Icon=rclash
+Terminal=false
+Type=Application
+Categories=Network;
+StartupWMClass=RClash

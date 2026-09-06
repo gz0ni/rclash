@@ -21,6 +21,7 @@ cat > "$APPDIR/AppRun" <<'EOF'
 exec "$(dirname "$0")/usr/bin/rclash" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
+cp "$ROOT/assets/icons/linux/rclash.png" "$APPDIR/rclash.png" 2>/dev/null || echo "icon not found — skip"
 if command -v appimagetool >/dev/null 2>&1; then
   appimagetool "$APPDIR" "$DIST/RClash-x86_64.AppImage"
 else

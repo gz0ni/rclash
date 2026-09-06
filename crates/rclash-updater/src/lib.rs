@@ -3,6 +3,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+pub mod geodata;
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Manifest {
     pub version: String,

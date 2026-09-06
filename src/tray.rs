@@ -10,23 +10,9 @@ pub struct TrayHandle {
 }
 
 fn build_icon() -> Option<Icon> {
-    let size = 32u32;
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    for y in 0..size {
-        for x in 0..size {
-            let dx = x as i32 - 16;
-            let dy = y as i32 - 16;
-            let dist = ((dx * dx + dy * dy) as f32).sqrt();
-            let alpha = if dist > 15.0 { 0 } else { 255 };
-            let (r, g, b) = if dist < 10.0 {
-                (80, 140, 255)
-            } else {
-                (60, 110, 210)
-            };
-            rgba.extend_from_slice(&[r, g, b, alpha]);
-        }
-    }
-    Icon::from_rgba(rgba, size, size).ok()
+    let bytes = include_bytes!("../assets/icons/tray/tray-32.png");
+    let (rgba, w, h) = crate::icon::decode_png_rgba(bytes).ok()?;
+    Icon::from_rgba(rgba, w, h).ok()
 }
 
 pub fn init_tray() -> Option<TrayHandle> {

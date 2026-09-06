@@ -33,16 +33,37 @@ rclash-tun = { path = "crates/rclash-tun" }
 rclash-updater = { path = "crates/rclash-updater" }
 rclash-db = { path = "crates/rclash-db" }
 open = "5.3"
+png = "0.17"
 
-[dev-dependencies]
-egui_kittest = { version = "0.32", features = ["snapshot", "wgpu"] }
-image = "0.25"
+[build-dependencies]
+winres = "0.1"
 
 [profile.release]
 lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[package.metadata.deb]
+maintainer = "RClash <https://github.com/RClash/rclash>"
+copyright = "2026, RClash"
+section = "net"
+priority = "optional"
+depends = "libgtk-3-0, libappindicator3-1"
+assets = [
+  ["target/x86_64-unknown-linux-gnu/release/rclash", "usr/bin/rclash", "755"],
+  ["target/x86_64-unknown-linux-gnu/release/rclash-core", "usr/bin/rclash-core", "755"],
+  ["packaging/linux/rclash.desktop", "usr/share/applications/rclash.desktop", "644"],
+  ["assets/icons/linux/rclash.png", "usr/share/icons/hicolor/256x256/apps/rclash.png", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/x86_64-unknown-linux-gnu/release/rclash", dest = "/usr/bin/rclash", mode = "755" },
+  { source = "target/x86_64-unknown-linux-gnu/release/rclash-core", dest = "/usr/bin/rclash-core", mode = "755" },
+  { source = "packaging/linux/rclash.desktop", dest = "/usr/share/applications/rclash.desktop", mode = "644" },
+  { source = "assets/icons/linux/rclash.png", dest = "/usr/share/icons/hicolor/256x256/apps/rclash.png", mode = "644" },
+]
 
 [workspace]
 members = ["crates/rclash-config", "crates/rclash-core-manager", "crates/rclash-subscription", "crates/rclash-sys-proxy", "crates/rclash-autostart", "crates/rclash-tun", "crates/rclash-tun-helper", "crates/rclash-updater", "crates/rclash-db"]

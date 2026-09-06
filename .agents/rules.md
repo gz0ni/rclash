@@ -15,7 +15,8 @@
 - Do not invent new state crate — use `crates/rclash-config`, `crates/rclash-core-manager`, `crates/rclash-sys-proxy` only
 
 ## State and Persistence
-- Config via `dirs::config_dir()/RClash` + `serde_yaml`/`serde_json`; no DB in F0
+- Local DB is the source of truth: `rclash.db` (rusqlite WAL) via `crates/rclash-db` — `configs` (full profile YAML) + `raw_keys` (raw link text + scheme + name + parsed YAML) + `favorites`; one-time migration from `profiles.json`/`custom.yaml` guarded by `PRAGMA user_version`
+- Generated runtime config for the sidecar lives in `dirs::config_dir()/RClash/runtime/config.yaml` (never edit user files in place); validate with `rclash-core -t` before start
 - Core state via mihomo REST API (`http://127.0.0.1:9090`), not via file polling
 
 ## Testing

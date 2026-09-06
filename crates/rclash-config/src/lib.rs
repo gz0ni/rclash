@@ -1,7 +1,9 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub mod custom;
 pub mod profile;
+pub mod runtime;
 
 pub fn config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|p| p.join("RClash"))
@@ -193,6 +195,186 @@ impl LogLevel {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum CoreMode {
+    #[default]
+    Rule,
+    Global,
+    Direct,
+}
+
+impl CoreMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Rule => "rule",
+            Self::Global => "global",
+            Self::Direct => "direct",
+        }
+    }
+
+    pub fn all() -> &'static [Self] {
+        &[Self::Rule, Self::Global, Self::Direct]
+    }
+
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "rule" => Some(Self::Rule),
+            "global" => Some(Self::Global),
+            "direct" => Some(Self::Direct),
+            _ => None,
+        }
+    }
+}
+
+fn default_enhanced_mode() -> String {
+    "fake-ip".to_owned()
+}
+
+fn default_dns_listen() -> String {
+    "0.0.0.0:1053".to_owned()
+}
+
+fn default_fake_ip_range() -> String {
+    "198.18.0.1/16".to_owned()
+}
+
+fn default_nameservers() -> Vec<String> {
+    vec!["223.5.5.5".to_owned(), "8.8.8.8".to_owned()]
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DnsConfig {
+    #[serde(default = "default_true")]
+    pub enable: bool,
+    #[serde(default = "default_enhanced_mode")]
+    pub enhanced_mode: String,
+    #[serde(default = "default_dns_listen")]
+    pub listen: String,
+    #[serde(default)]
+    pub ipv6: bool,
+    #[serde(default = "default_fake_ip_range")]
+    pub fake_ip_range: String,
+    #[serde(default = "default_nameservers")]
+    pub nameservers: Vec<String>,
+    #[serde(default)]
+    pub fallback: Vec<String>,
+}
+
+impl Default for DnsConfig {
+    fn default() -> Self {
+        Self {
+            enable: true,
+            enhanced_mode: default_enhanced_mode(),
+            listen: default_dns_listen(),
+            ipv6: false,
+            fake_ip_range: default_fake_ip_range(),
+            nameservers: default_nameservers(),
+            fallback: Vec::new(),
+        }
+    }
+}
+
+impl DnsConfig {
+    pub fn ui_mode(&self) -> &'static str {
+        if self.enhanced_mode == "redir-host" {
+            "RedirHost"
+        } else {
+            "FakeIP"
+        }
+    }
+
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "enable": self.enable,
+            "listen": self.listen,
+            "ipv6": self.ipv6,
+            "enhanced-mode": self.enhanced_mode,
+            "fake-ip-range": self.fake_ip_range,
+            "nameserver": self.nameservers,
+            "fallback": self.fallback,
+        })
+    }
+}
+
+pub fn api_base(external_controller: &Option<String>) -> String {
+    let ctrl = external_controller
+        .clone()
+        .unwrap_or_else(|| "127.0.0.1:9090".to_owned());
+    format!("http://{ctrl}")
+}
+
+pub fn validate_port_text(s: &str) -> Option<u16> {
+    s.trim().parse::<u16>().ok()
+}
+
+pub fn validate_listen(s: &str) -> bool {
+    let s = s.trim();
+    let Some((_host, port)) = s.rsplit_once(':') else {
+        return false;
+    };
+    if port.is_empty() {
+        return false;
+    }
+    port.parse::<u16>().is_ok()
+}
+
+pub fn validate_cidr(s: &str) -> bool {
+    let s = s.trim();
+    let Some((ip, mask)) = s.split_once('/') else {
+        return false;
+    };
+    let Ok(addr) = ip.parse::<std::net::IpAddr>() else {
+        return false;
+    };
+    let Ok(bits) = mask.parse::<u8>() else {
+        return false;
+    };
+    match addr {
+        std::net::IpAddr::V4(_) => bits <= 32,
+        std::net::IpAddr::V6(_) => bits <= 128,
+    }
+}
+
+pub fn parse_nameserver_list(s: &str) -> Vec<String> {
+    s.split([',', '\n', ';'])
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+pub fn parse_hosts_text(s: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for line in s.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (k, v) = match line.split_once('=') {
+            Some((a, b)) => (a.trim(), b.trim()),
+            None => match line.split_once(char::is_whitespace) {
+                Some((a, b)) => (a.trim(), b.trim()),
+                None => continue,
+            },
+        };
+        if k.is_empty() || v.parse::<std::net::IpAddr>().is_err() {
+            continue;
+        }
+        out.insert(k.to_owned(), v.to_owned());
+    }
+    out
+}
+
+pub fn hosts_to_text(hosts: &BTreeMap<String, String>) -> String {
+    hosts
+        .iter()
+        .map(|(k, v)| format!("{k} = {v}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
@@ -235,6 +417,16 @@ pub struct AppConfig {
     pub geodata_loader: Option<String>,
     #[serde(default)]
     pub find_process_mode: Option<String>,
+    #[serde(default)]
+    pub core_secret: Option<String>,
+    #[serde(default)]
+    pub mode: CoreMode,
+    #[serde(default)]
+    pub dns: DnsConfig,
+    #[serde(default)]
+    pub hosts: BTreeMap<String, String>,
+    #[serde(default)]
+    pub geodata_strict: bool,
 }
 
 fn default_true() -> bool {
@@ -264,6 +456,11 @@ impl Default for AppConfig {
             keep_alive_interval: None,
             geodata_loader: None,
             find_process_mode: None,
+            core_secret: None,
+            mode: CoreMode::Rule,
+            dns: DnsConfig::default(),
+            hosts: BTreeMap::new(),
+            geodata_strict: false,
         }
     }
 }
@@ -291,6 +488,28 @@ pub fn save_app_config(cfg: &AppConfig) -> anyhow::Result<()> {
     let s = serde_json::to_string_pretty(cfg)?;
     atomic_write(&path, s.as_bytes())?;
     Ok(())
+}
+
+pub fn ensure_core_secret(cfg: &mut AppConfig) -> anyhow::Result<String> {
+    if let Some(ref s) = cfg.core_secret {
+        if !s.is_empty() {
+            return Ok(s.clone());
+        }
+    }
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let mut h1 = DefaultHasher::new();
+    (nanos, std::process::id(), 1u8).hash(&mut h1);
+    let mut h2 = DefaultHasher::new();
+    (nanos.reverse_bits(), std::process::id(), 2u8).hash(&mut h2);
+    let secret = format!("{:016x}{:016x}", h1.finish(), h2.finish());
+    cfg.core_secret = Some(secret.clone());
+    save_app_config(cfg)?;
+    Ok(secret)
 }
 
 pub fn atomic_write(path: &Path, data: &[u8]) -> anyhow::Result<()> {
@@ -338,6 +557,11 @@ mod tests {
             keep_alive_interval: None,
             geodata_loader: None,
             find_process_mode: None,
+            core_secret: None,
+            mode: CoreMode::Global,
+            dns: DnsConfig::default(),
+            hosts: BTreeMap::new(),
+            geodata_strict: true,
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: AppConfig = serde_json::from_str(&s).unwrap();
@@ -348,6 +572,10 @@ mod tests {
         assert_eq!(back.log_level, LogLevel::Debug);
         assert!(back.tun_enabled);
         assert!(!back.show_traffic_graph);
+        assert_eq!(back.mode, CoreMode::Global);
+        assert!(back.dns.enable);
+        assert_eq!(back.dns.enhanced_mode, "fake-ip");
+        assert!(back.geodata_strict);
     }
 
     #[test]
@@ -398,5 +626,61 @@ mod tests {
         assert_eq!(UpdateInterval::Manual.duration_secs(), None);
         assert_eq!(UpdateInterval::H1.duration_secs(), Some(3600));
         assert_eq!(UpdateInterval::H24.duration_secs(), Some(86400));
+    }
+
+    #[test]
+    fn core_mode_roundtrip() {
+        assert_eq!(CoreMode::from_str("global"), Some(CoreMode::Global));
+        assert_eq!(CoreMode::from_str("DIRECT"), Some(CoreMode::Direct));
+        assert_eq!(CoreMode::from_str("nope"), None);
+        assert_eq!(CoreMode::Rule.as_str(), "rule");
+        assert_eq!(CoreMode::all().len(), 3);
+    }
+
+    #[test]
+    fn legacy_app_json_loads_with_mode_defaults() {
+        let back: AppConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(back.mode, CoreMode::Rule);
+        assert!(back.dns.enable);
+        assert!(back.hosts.is_empty());
+    }
+
+    #[test]
+    fn api_base_default_and_custom() {
+        assert_eq!(api_base(&None), "http://127.0.0.1:9090");
+        assert_eq!(
+            api_base(&Some("127.0.0.1:9091".to_owned())),
+            "http://127.0.0.1:9091"
+        );
+    }
+
+    #[test]
+    fn validators() {
+        assert_eq!(validate_port_text("7890"), Some(7890));
+        assert_eq!(validate_port_text("0"), Some(0));
+        assert_eq!(validate_port_text("99999"), None);
+        assert_eq!(validate_port_text("abc"), None);
+        assert!(validate_listen("0.0.0.0:1053"));
+        assert!(validate_listen(":1053"));
+        assert!(!validate_listen("1053"));
+        assert!(!validate_listen("host:abc"));
+        assert!(validate_cidr("198.18.0.1/16"));
+        assert!(validate_cidr("::1/128"));
+        assert!(!validate_cidr("198.18.0.1/33"));
+        assert!(!validate_cidr("not-a-cidr"));
+    }
+
+    #[test]
+    fn nameserver_and_hosts_parsing() {
+        let ns = parse_nameserver_list("223.5.5.5, 8.8.8.8\n1.1.1.1");
+        assert_eq!(ns, vec!["223.5.5.5", "8.8.8.8", "1.1.1.1"]);
+        let hosts = parse_hosts_text("example.com = 1.2.3.4\nbad-line\nx.io 5.6.7.8");
+        assert_eq!(
+            hosts.get("example.com").map(String::as_str),
+            Some("1.2.3.4")
+        );
+        assert_eq!(hosts.get("x.io").map(String::as_str), Some("5.6.7.8"));
+        assert!(!hosts.contains_key("bad-line"));
+        assert!(hosts_to_text(&hosts).contains("example.com = 1.2.3.4"));
     }
 }

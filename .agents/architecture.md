@@ -23,12 +23,17 @@ RClash/  (monorepo root)
 ### crates/rclash-config
 - responsibility: mihomo YAML parsing, validation, profile persistence + `AppConfig {theme Light/Dark default Dark, show_traffic_graph bool, minimize_to_tray, skipped_version, last_check, update_interval}` persist `app.json` + `profiles.json` + `profiles/custom.yaml` unified RAW + PatchClashConfig mirror BOLT
 - key files: `crates/rclash-config/src/lib.rs`, `crates/rclash-config/src/profile.rs`, `crates/rclash-config/src/custom.rs`
-- notable: `serde_yaml`/`serde_json` models, stored in `dirs::config_dir()/RClash` (Win `%APPDATA%/RClash`, Linux `~/.config/rclash`, macOS `~/Library/Application Support/RClash`), `Theme Light/Dark` NekoBox muted 1px R6 (Light #D0D3D8 Dark #3C3F41) card #FFF/#2D2F33 panel #F0F2F5/#1E1E1E accent #3B82F6, `UpdateInterval {Manual,30m,1h,6h,12h,24h}` default 24h with subscription override via `UpdateInterval::effective`, atomic write `tmp+rename`, `Profile {name,path,url,update_interval,last_update,is_raw}`, `ProfileStore {profiles,active}`, `custom.yaml` dedup `name/server:port+type` + `proxy-groups PROXY select`
+- notable: `serde_yaml`/`serde_json` models, stored in `dirs::config_dir()/RClash` (Win `%APPDATA%/RClash`, Linux `~/.config/rclash`, macOS `~/Library/Application Support/RClash`), `Theme Light/Dark` NekoBox muted 1px R6 (Light #D0D3D8 Dark #3C3F41) card #FFF/#2D2F33 panel #F0F2F5/#1E1E1E accent #3B82F6, `UpdateInterval {Manual,30m,1h,6h,12h,24h}` default 24h with subscription override via `UpdateInterval::effective`, atomic write `tmp+rename`, `Profile {name,path,url,update_interval,last_update,is_raw}`, `ProfileStore {profiles,active}`, `custom.yaml` dedup `name/server:port+type` + `proxy-groups PROXY select`, `CoreMode {Rule,Global,Direct}` + `DnsConfig {enable,enhanced-mode,listen,ipv6,fake-ip-range,nameserver,fallback}` + `hosts` map in `AppConfig`, `api_base()` from `external_controller`, validators (`validate_port_text/listen/cidr`, `parse_nameserver_list/hosts_text`), runtime assembler writes `mode/dns/hosts/tun.enable` explicitly
 
 ### crates/rclash-core-manager
 - responsibility: spawn/manage `rclash-core` sidecar, REST client to mihomo API
-- key files: `crates/rclash-core-manager/src/lib.rs`, `crates/rclash-core-manager/src/process.rs`, `crates/rclash-core-manager/src/api.rs`
-- notable: `Command::new("rclash-core")`, healthcheck `GET http://127.0.0.1:9090/version`, traffic WS `/traffic`, connections `/connections`, proxies `/proxies` + `GET /proxies/{name}/delay` + `PATCH /configs {mode}` + `DELETE /connections`, `ProxyMode {Rule,Global,Direct}`, `CoreApi {base,secret,client}` with `Authorization: Bearer`
+- key files: `crates/rclash-core-manager/src/lib.rs`, `crates/rclash-core-manager/src/process.rs`, `crates/rclash-core-manager/src/api.rs`, `crates/rclash-core-manager/src/supervisor.rs`
+- notable: sync `supervisor::{spawn_and_wait (-t precheck + /version healthcheck), stop_child, proxies/select/mode/delay/reload_blocking}` for egui threads (all REST takes `base` from `AppConfig::external_controller`, `reload` sends `{}` body — empty body is 400); async `CoreProcess`/`CoreApi` kept; `ProxyMode {Rule,Global,Direct}`; secret via `Authorization: Bearer`; hot-PATCH keys verified: `mode/log-level/ipv6/allow-lan/tcp-concurrent` (no `unified-delay/keep-alive`, no `PUT /dns` in core — DNS via rebuild+reload)
+
+### crates/rclash-db
+- responsibility: single source of truth — `rclash.db` (rusqlite WAL): `configs` (full profile YAML + url + active flag), `raw_keys` (raw link text UNIQUE + scheme + name + parsed YAML), `favorites`; one-time `migrate_from_files` (`profiles.json` + `custom.yaml` proxies) guarded by `PRAGMA user_version`
+- key files: `crates/rclash-db/src/lib.rs`
+- notable: UI opens a connection per operation (`rclash_db::open()`), no shared handle
 
 ### crates/rclash-subscription
 - responsibility: subscription import — детект yaml/base64/text → отдельные профили, парсинг сырых ссылок hysteria2/trojan/vless/vmess/ss
