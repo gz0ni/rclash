@@ -10,6 +10,7 @@ import (
 
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/openacid/low/bitmap"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -26,20 +27,78 @@ type DomainSet struct {
 
 type qElt struct{ s, e, col int }
 
+// DomainSetBuilder incrementally collects domain patterns for a DomainSet.
+// Its zero value is ready to use.
+type DomainSetBuilder struct {
+	keys []string
+}
+
+// Insert validates and adds a domain pattern to the builder. It accepts the
+// same domain syntax as [DomainTrie.Insert].
+func (b *DomainSetBuilder) Insert(domain string) error {
+	parts, err := ValidAndSplitDomain(domain)
+	if err != nil {
+		return err
+	}
+
+	if parts[0] == complexWildcard {
+		b.insert(parts[1:])
+		b.insert(parts)
+	} else {
+		b.insert(parts)
+	}
+	return nil
+}
+
+func (b *DomainSetBuilder) insert(parts []string) {
+	if parts[0] == dotWildcard {
+		parts[0] = complexWildcard
+	}
+	b.keys = append(b.keys, utils.Reverse(joinDomain(parts)))
+}
+
+// IsEmpty reports whether the builder contains any domain paths.
+func (b *DomainSetBuilder) IsEmpty() bool {
+	return b == nil || len(b.keys) == 0
+}
+
+// Reset discards all domains accumulated by the builder.
+func (b *DomainSetBuilder) Reset() {
+	b.keys = nil
+}
+
+// Build consumes the accumulated domains and creates an immutable DomainSet.
+// The builder can be reused after Build returns.
+func (b *DomainSetBuilder) Build() *DomainSet {
+	if b == nil {
+		return nil
+	}
+	keys := b.keys
+	b.keys = nil
+	return buildDomainSet(keys)
+}
+
 // NewDomainSet creates a new *DomainSet struct, from a DomainTrie.
 func (t *DomainTrie[T]) NewDomainSet() *DomainSet {
-	reserveDomains := make([]string, 0)
-	t.Foreach(func(domain string, data T) bool {
-		reserveDomains = append(reserveDomains, utils.Reverse(domain))
+	keys := make([]string, 0)
+	t.Foreach(func(domain string, _ T) bool {
+		keys = append(keys, utils.Reverse(domain))
 		return true
 	})
-	// ensure that the same prefix is continuous
-	// and according to the ascending sequence of length
-	sort.Strings(reserveDomains)
-	keys := reserveDomains
+	return buildDomainSet(keys)
+}
+
+func buildDomainSet(keys []string) *DomainSet {
 	if len(keys) == 0 {
 		return nil
 	}
+	// ensure that the same prefix is continuous
+	// and according to the ascending sequence of length
+	sort.Strings(keys)
+	// The construction loop below consumes only one terminal key per node, so a
+	// duplicate would be indexed past its end and panic.
+	keys = slices.Compact(keys)
+
 	ss := &DomainSet{}
 	lIdx := 0
 
@@ -98,23 +157,26 @@ func (ss *DomainSet) Has(key string) bool {
 		c := revLowerAt(key, i)
 		for ; ; bmIdx++ {
 			if getBit(ss.labelBitmap, bmIdx) != 0 {
-				if len(stack) > 0 {
+				for len(stack) > 0 {
 					cursor := stack[len(stack)-1]
 					stack = stack[0 : len(stack)-1]
 					// back wildcard and find next node
 					nextNodeId := countZeros(ss.labelBitmap, ss.ranks, cursor.bmIdx+1)
-					nextBmIdx := selectIthOne(ss.labelBitmap, ss.ranks, ss.selects, nextNodeId-1) + 1
 					j := cursor.index
 					for ; j < len(key) && revLowerAt(key, j) != domainStepByte; j++ {
 					}
 					if j == len(key) {
 						if getBit(ss.leaves, nextNodeId) != 0 {
+							// The wildcard consumed the rest of the key and reached a
+							// terminal node, so this branch matches.
 							return true
-						} else {
-							goto RESTART
 						}
+						// Otherwise, this node is not terminal and this wildcard branch
+						// has no input left for child edges. Try any remaining saved wildcards.
+						continue
 					}
-					for ; nextBmIdx-nextNodeId < len(ss.labels); nextBmIdx++ {
+					nextBmIdx := selectIthOne(ss.labelBitmap, ss.ranks, ss.selects, nextNodeId-1) + 1
+					for ; getBit(ss.labelBitmap, nextBmIdx) == 0; nextBmIdx++ {
 						if ss.labels[nextBmIdx-nextNodeId] == domainStepByte {
 							bmIdx = nextBmIdx
 							nodeId = nextNodeId
@@ -137,7 +199,20 @@ func (ss *DomainSet) Has(key string) bool {
 				break
 			}
 		}
-		nodeId = countZeros(ss.labelBitmap, ss.ranks, bmIdx+1)
+		nodeId = bmIdx - nodeId + 1 // countZeros(ss.labelBitmap, ss.ranks, bmIdx+1)
+		if i == len(key)-1 {
+			if getBit(ss.leaves, nodeId) != 0 {
+				// All input is consumed at a terminal node, so the key matches.
+				return true
+			}
+			if len(stack) == 0 {
+				// No input remains for this non-terminal node's child edges.
+				// With no saved wildcard branches left, the key cannot match.
+				return false
+			}
+			bmIdx = selectIthOne(ss.labelBitmap, ss.ranks, ss.selects, nodeId)
+			goto RESTART
+		}
 		bmIdx = selectIthOne(ss.labelBitmap, ss.ranks, ss.selects, nodeId-1) + 1
 	}
 
@@ -179,7 +254,7 @@ func (ss *DomainSet) keys(f func(key string) bool) {
 			}
 			nextLabel := ss.labels[bmIdx-nodeId]
 			currentKey = append(currentKey, nextLabel)
-			nextNodeId := countZeros(ss.labelBitmap, ss.ranks, bmIdx+1)
+			nextNodeId := bmIdx - nodeId + 1 // countZeros(ss.labelBitmap, ss.ranks, bmIdx+1)
 			nextBmIdx := selectIthOne(ss.labelBitmap, ss.ranks, ss.selects, nextNodeId-1) + 1
 			if !traverse(nextNodeId, nextBmIdx) {
 				return false
