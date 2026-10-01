@@ -2,20 +2,48 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub mod custom;
+pub mod guard;
 pub mod profile;
 pub mod runtime;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("no config dir")]
+    NoConfigDir,
+    #[error("profile root not mapping")]
+    ProfileRootNotMapping,
+    #[error("custom.yaml root not mapping")]
+    CustomRootNotMapping,
+    #[error("proxies not sequence")]
+    ProxiesNotSequence,
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Yaml(#[from] serde_yaml::Error),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 pub fn config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|p| p.join("RClash"))
 }
 
-pub fn ensure_config_dir() -> anyhow::Result<PathBuf> {
-    let dir = config_dir().ok_or_else(|| anyhow::anyhow!("no config dir"))?;
+pub fn ensure_config_dir() -> Result<PathBuf> {
+    let dir = config_dir().ok_or(Error::NoConfigDir)?;
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }
 
-pub fn validate_yaml(path: &Path) -> anyhow::Result<serde_yaml::Value> {
+pub fn ensure_tls_provider() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
+pub fn validate_yaml(path: &Path) -> Result<serde_yaml::Value> {
     let s = std::fs::read_to_string(path)?;
     let v: serde_yaml::Value = serde_yaml::from_str(&s)?;
     Ok(v)
@@ -379,8 +407,6 @@ pub fn hosts_to_text(hosts: &BTreeMap<String, String>) -> String {
 pub struct AppConfig {
     #[serde(default)]
     pub theme: Theme,
-    #[serde(default = "default_true")]
-    pub minimize_to_tray: bool,
     #[serde(default)]
     pub skipped_version: Option<String>,
     #[serde(default)]
@@ -437,7 +463,6 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: Theme::Dark,
-            minimize_to_tray: true,
             skipped_version: None,
             last_check: None,
             update_interval: UpdateInterval::H24,
@@ -482,7 +507,7 @@ pub fn load_app_config() -> AppConfig {
     serde_json::from_str(&s).unwrap_or_default()
 }
 
-pub fn save_app_config(cfg: &AppConfig) -> anyhow::Result<()> {
+pub fn save_app_config(cfg: &AppConfig) -> Result<()> {
     let dir = ensure_config_dir()?;
     let path = dir.join("app.json");
     let s = serde_json::to_string_pretty(cfg)?;
@@ -490,7 +515,7 @@ pub fn save_app_config(cfg: &AppConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn ensure_core_secret(cfg: &mut AppConfig) -> anyhow::Result<String> {
+pub fn ensure_core_secret(cfg: &mut AppConfig) -> Result<String> {
     if let Some(ref s) = cfg.core_secret {
         if !s.is_empty() {
             return Ok(s.clone());
@@ -512,17 +537,54 @@ pub fn ensure_core_secret(cfg: &mut AppConfig) -> anyhow::Result<String> {
     Ok(secret)
 }
 
-pub fn atomic_write(path: &Path, data: &[u8]) -> anyhow::Result<()> {
+static TMP_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn tmp_path_for(path: &Path) -> PathBuf {
+    let n = TMP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let suffix = format!("tmp.{}.{}", std::process::id(), n);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| format!("{e}.{suffix}"))
+        .unwrap_or(suffix);
+    path.with_extension(ext)
+}
+
+pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
     }
-    let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, data)?;
-    if path.exists() {
-        let _ = std::fs::remove_file(path);
+    let tmp = tmp_path_for(path);
+    let res = (|| -> Result<()> {
+        std::fs::write(&tmp, data)?;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&tmp)?
+            .sync_all()?;
+        match std::fs::rename(&tmp, path) {
+            Ok(()) => {}
+            Err(first) if path.exists() => {
+                std::fs::remove_file(path)?;
+                std::fs::rename(&tmp, path).map_err(|_| first)?;
+            }
+            Err(e) => return Err(e.into()),
+        }
+        #[cfg(unix)]
+        {
+            if let Some(parent) = path.parent() {
+                if let Ok(dir) = std::fs::File::open(parent) {
+                    let _ = dir.sync_all();
+                }
+            }
+        }
+        Ok(())
+    })();
+    if res.is_err() {
+        let _ = std::fs::remove_file(&tmp);
     }
-    std::fs::rename(&tmp, path)?;
-    Ok(())
+    res
 }
 
 #[cfg(test)]
@@ -535,10 +597,32 @@ mod tests {
     }
 
     #[test]
+    fn atomic_write_roundtrip_and_cleanup() {
+        let dir = std::env::temp_dir().join(format!(
+            "rclash-atomic-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let path = dir.join("app.json");
+        atomic_write(&path, b"{\"a\":1}").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"{\"a\":1}");
+        atomic_write(&path, b"{\"a\":2}").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"{\"a\":2}");
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path() != path)
+            .collect();
+        assert!(leftovers.is_empty(), "tmp leftovers: {leftovers:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn app_config_roundtrip() {
         let cfg = AppConfig {
             theme: Theme::Light,
-            minimize_to_tray: false,
             skipped_version: Some("v1.2.3".into()),
             last_check: Some("2026-08-30T00:00:00Z".into()),
             update_interval: UpdateInterval::H12,
@@ -566,7 +650,6 @@ mod tests {
         let s = serde_json::to_string(&cfg).unwrap();
         let back: AppConfig = serde_json::from_str(&s).unwrap();
         assert_eq!(back.theme, Theme::Light);
-        assert!(!back.minimize_to_tray);
         assert_eq!(back.skipped_version.as_deref(), Some("v1.2.3"));
         assert_eq!(back.update_interval, UpdateInterval::H12);
         assert_eq!(back.log_level, LogLevel::Debug);
@@ -582,7 +665,6 @@ mod tests {
     fn app_config_default_is_dark() {
         let cfg = AppConfig::default();
         assert_eq!(cfg.theme, Theme::Dark);
-        assert!(cfg.minimize_to_tray);
         assert_eq!(cfg.update_interval, UpdateInterval::H24);
         assert!(cfg.skipped_version.is_none());
         assert_eq!(cfg.log_level, LogLevel::Info);

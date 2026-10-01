@@ -1,10 +1,21 @@
 use serde::{Deserialize, Serialize};
 
+use crate::{Error, Result};
+
 #[derive(Debug, Clone)]
 pub struct CoreApi {
     base: String,
     secret: Option<String>,
     client: reqwest::Client,
+}
+
+static SHARED_ASYNC_CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+
+pub fn shared_async_client() -> reqwest::Client {
+    rclash_config::ensure_tls_provider();
+    SHARED_ASYNC_CLIENT
+        .get_or_init(reqwest::Client::new)
+        .clone()
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,13 +115,13 @@ pub fn format_bytes(b: u64) -> String {
     }
 }
 
-pub fn log_level_color(level: &str) -> egui::Color32 {
+pub fn log_level_color(level: &str) -> (u8, u8, u8) {
     match level.to_ascii_lowercase().as_str() {
-        "error" => egui::Color32::from_rgb(220, 80, 80),
-        "warning" | "warn" => egui::Color32::from_rgb(220, 180, 60),
-        "debug" => egui::Color32::from_rgb(140, 140, 140),
-        "info" => egui::Color32::from_rgb(120, 180, 255),
-        _ => egui::Color32::from_gray(180),
+        "error" => (220, 80, 80),
+        "warning" | "warn" => (220, 180, 60),
+        "debug" => (140, 140, 140),
+        "info" => (120, 180, 255),
+        _ => (180, 180, 180),
     }
 }
 
@@ -167,12 +178,12 @@ pub struct DelayResult {
     pub message: Option<String>,
 }
 
-pub fn delay_color(delay_ms: Option<u64>) -> egui::Color32 {
+pub fn delay_color(delay_ms: Option<u64>) -> (u8, u8, u8) {
     match delay_ms {
-        None => egui::Color32::from_gray(120),
-        Some(d) if d < 100 => egui::Color32::from_rgb(80, 200, 120),
-        Some(d) if d < 300 => egui::Color32::from_rgb(220, 180, 60),
-        Some(_) => egui::Color32::from_rgb(220, 80, 80),
+        None => (120, 120, 120),
+        Some(d) if d < 100 => (80, 200, 120),
+        Some(d) if d < 300 => (220, 180, 60),
+        Some(_) => (220, 80, 80),
     }
 }
 
@@ -188,7 +199,7 @@ impl CoreApi {
         Self {
             base: base.into(),
             secret: None,
-            client: reqwest::Client::new(),
+            client: shared_async_client(),
         }
     }
 
@@ -209,7 +220,7 @@ impl CoreApi {
         }
     }
 
-    pub async fn version(&self) -> anyhow::Result<VersionInfo> {
+    pub async fn version(&self) -> Result<VersionInfo> {
         let url = format!("{}/version", self.base);
         let v = self.auth(self.client.get(url)).send().await?.json().await?;
         Ok(v)
@@ -219,40 +230,40 @@ impl CoreApi {
         self.version().await.is_ok()
     }
 
-    pub async fn traffic(&self) -> anyhow::Result<TrafficInfo> {
+    pub async fn traffic(&self) -> Result<TrafficInfo> {
         let url = format!("{}/traffic", self.base);
         let v = self.auth(self.client.get(url)).send().await?.json().await?;
         Ok(v)
     }
 
-    pub async fn proxies(&self) -> anyhow::Result<serde_json::Value> {
+    pub async fn proxies(&self) -> Result<serde_json::Value> {
         let url = format!("{}/proxies", self.base);
         let v = self.auth(self.client.get(url)).send().await?.json().await?;
         Ok(v)
     }
 
-    pub async fn connections(&self) -> anyhow::Result<serde_json::Value> {
+    pub async fn connections(&self) -> Result<serde_json::Value> {
         let url = format!("{}/connections", self.base);
         let v = self.auth(self.client.get(url)).send().await?.json().await?;
         Ok(v)
     }
 
-    pub async fn reload(&self) -> anyhow::Result<()> {
+    pub async fn reload(&self) -> Result<()> {
         let url = format!("{}/configs?force=true", self.base);
-        self.auth(self.client.put(url))
+        self.auth(self.client.put(url).json(&serde_json::json!({})))
             .send()
             .await?
             .error_for_status()?;
         Ok(())
     }
 
-    pub async fn get_configs(&self) -> anyhow::Result<serde_json::Value> {
+    pub async fn get_configs(&self) -> Result<serde_json::Value> {
         let url = format!("{}/configs", self.base);
         let v = self.auth(self.client.get(url)).send().await?.json().await?;
         Ok(v)
     }
 
-    pub async fn set_mode(&self, mode: ProxyMode) -> anyhow::Result<()> {
+    pub async fn set_mode(&self, mode: ProxyMode) -> Result<()> {
         let url = format!("{}/configs", self.base);
         let body = serde_json::json!({"mode": mode.as_str()});
         self.auth(self.client.patch(url).json(&body))
@@ -262,7 +273,7 @@ impl CoreApi {
         Ok(())
     }
 
-    pub async fn get_mode(&self) -> anyhow::Result<ProxyMode> {
+    pub async fn get_mode(&self) -> Result<ProxyMode> {
         let cfg = self.get_configs().await?;
         let mode_str = cfg.get("mode").and_then(|v| v.as_str()).unwrap_or("rule");
         Ok(ProxyMode::from_str(mode_str).unwrap_or(ProxyMode::Rule))
@@ -273,7 +284,7 @@ impl CoreApi {
         proxy_name: &str,
         test_url: &str,
         timeout_ms: u64,
-    ) -> anyhow::Result<DelayResult> {
+    ) -> Result<DelayResult> {
         let url = format!(
             "{}/proxies/{}/delay?url={}&timeout={}",
             self.base,
@@ -285,13 +296,16 @@ impl CoreApi {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            anyhow::bail!("delay check failed {status}: {text}");
+            return Err(Error::DelayCheckFailed {
+                status: status.to_string(),
+                text,
+            });
         }
         let v: DelayResult = resp.json().await?;
         Ok(v)
     }
 
-    pub async fn close_connection(&self, id: &str) -> anyhow::Result<()> {
+    pub async fn close_connection(&self, id: &str) -> Result<()> {
         let url = format!("{}/connections/{}", self.base, percent_encode(id));
         self.auth(self.client.delete(url))
             .send()
@@ -300,7 +314,7 @@ impl CoreApi {
         Ok(())
     }
 
-    pub async fn close_all_connections(&self) -> anyhow::Result<()> {
+    pub async fn close_all_connections(&self) -> Result<()> {
         let url = format!("{}/connections", self.base);
         self.auth(self.client.delete(url))
             .send()
@@ -335,13 +349,10 @@ mod tests {
 
     #[test]
     fn delay_color_thresholds() {
-        assert_eq!(delay_color(None), egui::Color32::from_gray(120));
-        assert_eq!(delay_color(Some(50)), egui::Color32::from_rgb(80, 200, 120));
-        assert_eq!(
-            delay_color(Some(150)),
-            egui::Color32::from_rgb(220, 180, 60)
-        );
-        assert_eq!(delay_color(Some(500)), egui::Color32::from_rgb(220, 80, 80));
+        assert_eq!(delay_color(None), (120, 120, 120));
+        assert_eq!(delay_color(Some(50)), (80, 200, 120));
+        assert_eq!(delay_color(Some(150)), (220, 180, 60));
+        assert_eq!(delay_color(Some(500)), (220, 80, 80));
     }
 
     #[test]
