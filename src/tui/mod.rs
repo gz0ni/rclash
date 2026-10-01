@@ -1,5 +1,6 @@
 pub mod clipboard;
 pub mod event;
+pub mod layout;
 pub mod state;
 pub mod term;
 
@@ -7,7 +8,6 @@ use std::sync::mpsc::Sender;
 use std::time::Duration;
 
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
-use ratatui::widgets::Paragraph;
 
 use event::Event;
 use state::AppState;
@@ -49,20 +49,16 @@ fn quit_requested(key: &crossterm::event::KeyEvent) -> bool {
     )
 }
 
-fn handle_event(app: &mut AppState, ticks: &mut u64, keys: &mut u64, event: Event) -> bool {
+fn handle_event(app: &mut AppState, event: Event) -> bool {
     match event {
         Event::Key(key) => {
-            *keys += 1;
             if quit_requested(&key) {
                 return true;
             }
             app.move_cursor(0);
             false
         }
-        Event::Tick => {
-            *ticks += 1;
-            false
-        }
+        Event::Tick => false,
         Event::Mouse(_) => false,
         Event::NetSample { up, down } => {
             app.push_traffic(up, down);
@@ -83,21 +79,14 @@ pub fn run() -> anyhow::Result<()> {
     spawn_tick(tx);
 
     let mut app = AppState::default();
-    let mut ticks: u64 = 0;
-    let mut keys: u64 = 0;
 
     let result = (|| -> anyhow::Result<()> {
         loop {
             let event = rx.recv().map_err(|_| anyhow::anyhow!("event bus closed"))?;
-            if handle_event(&mut app, &mut ticks, &mut keys, event) {
+            if handle_event(&mut app, event) {
                 break;
             }
-            terminal.draw(|frame| {
-                let text = format!(
-                    "RClash TUI — step 2 event loop\nticks: {ticks}  keys: {keys}\nq — quit"
-                );
-                frame.render_widget(Paragraph::new(text), frame.area());
-            })?;
+            terminal.draw(|frame| layout::render(frame, &app))?;
         }
         Ok(())
     })();
@@ -123,39 +112,24 @@ mod tests {
     #[test]
     fn q_and_ctrl_c_quit() {
         let mut app = AppState::default();
-        let (mut ticks, mut keys) = (0, 0);
         for (code, mods) in [
             (KeyCode::Char('q'), KeyModifiers::NONE),
             (KeyCode::Char('й'), KeyModifiers::NONE),
             (KeyCode::Char('c'), KeyModifiers::CONTROL),
         ] {
-            assert!(handle_event(
-                &mut app,
-                &mut ticks,
-                &mut keys,
-                key(code, mods)
-            ));
+            assert!(handle_event(&mut app, key(code, mods)));
         }
         assert!(!handle_event(
             &mut app,
-            &mut ticks,
-            &mut keys,
             key(KeyCode::Char('q'), KeyModifiers::CONTROL)
         ));
-        assert!(!handle_event(&mut app, &mut ticks, &mut keys, Event::Tick));
-        assert_eq!(ticks, 1);
+        assert!(!handle_event(&mut app, Event::Tick));
     }
 
     #[test]
     fn net_sample_feeds_ring() {
         let mut app = AppState::default();
-        let (mut ticks, mut keys) = (0, 0);
-        assert!(!handle_event(
-            &mut app,
-            &mut ticks,
-            &mut keys,
-            Event::NetSample { up: 7, down: 9 }
-        ));
+        assert!(!handle_event(&mut app, Event::NetSample { up: 7, down: 9 }));
         assert_eq!(app.traffic.back(), Some(&(7, 9)));
     }
 }
