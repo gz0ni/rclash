@@ -108,7 +108,7 @@ fn block(title: &'static str, focused: bool) -> Block<'static> {
         .border_style(border)
 }
 
-pub fn render(frame: &mut Frame, app: &AppState) {
+pub fn render(frame: &mut Frame, app: &mut AppState) {
     let area = frame.area();
     if area.width < MIN_W || area.height < MIN_H {
         let warn = Paragraph::new("Window too small — expand to at least 80x24")
@@ -128,11 +128,13 @@ pub fn render(frame: &mut Frame, app: &AppState) {
         .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
         .split(root[1]);
 
+    app.proxy_panel = Some(cols[0]);
+    app.side_panel = Some(cols[1]);
     render_left(frame, app, cols[0]);
     render_right(frame, app, cols[1]);
 }
 
-fn render_left(frame: &mut Frame, app: &AppState, area: Rect) {
+fn render_left(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -155,7 +157,7 @@ fn render_left(frame: &mut Frame, app: &AppState, area: Rect) {
     frame.render_widget(counter, rows[2]);
 }
 
-fn render_right(frame: &mut Frame, app: &AppState, area: Rect) {
+fn render_right(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -214,8 +216,8 @@ mod tests {
     #[test]
     fn small_window_warns() {
         let mut term = harness(70, 20);
-        let app = AppState::default();
-        term.draw(|f| render(f, &app)).unwrap();
+        let mut app = AppState::default();
+        term.draw(|f| render(f, &mut app)).unwrap();
         assert!(text_of(&term).contains("too small"));
     }
 
@@ -233,7 +235,7 @@ mod tests {
             ..Default::default()
         };
         app.traffic.push_back((10, 20));
-        term.draw(|f| render(f, &app)).unwrap();
+        term.draw(|f| render(f, &mut app)).unwrap();
         let text = text_of(&term);
         assert!(text.contains("RClash"));
         assert!(text.contains("core up"));
@@ -245,8 +247,8 @@ mod tests {
     #[test]
     fn empty_state_waits_for_data() {
         let mut term = harness(100, 30);
-        let app = AppState::default();
-        term.draw(|f| render(f, &app)).unwrap();
+        let mut app = AppState::default();
+        term.draw(|f| render(f, &mut app)).unwrap();
         let text = text_of(&term);
         assert!(text.contains("Waiting for data"));
         assert!(text.contains("core down"));

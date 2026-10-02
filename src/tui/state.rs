@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+use ratatui::layout::Rect;
 use rclash_core_manager::api::ProxyMode;
 
 pub const TRAFFIC_CAP: usize = 100;
@@ -68,6 +69,12 @@ pub struct AppState {
     pub mode: ProxyMode,
     pub proxies: Vec<ProxyNode>,
     pub proxy_cursor: usize,
+    pub proxy_scroll: usize,
+    pub proxy_visible: usize,
+    pub proxy_panel: Option<Rect>,
+    pub proxy_rows_rect: Option<Rect>,
+    pub side_panel: Option<Rect>,
+    pub ping_requested: bool,
     pub selected_proxy: String,
     pub selected_group: String,
     pub traffic: VecDeque<(u64, u64)>,
@@ -92,6 +99,12 @@ impl Default for AppState {
             mode: ProxyMode::Rule,
             proxies: Vec::new(),
             proxy_cursor: 0,
+            proxy_scroll: 0,
+            proxy_visible: 0,
+            proxy_panel: None,
+            proxy_rows_rect: None,
+            side_panel: None,
+            ping_requested: false,
             selected_proxy: String::new(),
             selected_group: String::new(),
             traffic: VecDeque::with_capacity(TRAFFIC_CAP),
@@ -145,6 +158,18 @@ impl AppState {
         }
         let next = self.proxy_cursor as isize + delta;
         self.proxy_cursor = next.clamp(0, self.proxies.len() as isize - 1) as usize;
+        self.clamp_scroll();
+    }
+
+    pub fn clamp_scroll(&mut self) {
+        let visible = self.proxy_visible.max(1);
+        if self.proxy_cursor < self.proxy_scroll {
+            self.proxy_scroll = self.proxy_cursor;
+        } else if self.proxy_cursor >= self.proxy_scroll + visible {
+            self.proxy_scroll = self.proxy_cursor - visible + 1;
+        }
+        let max_scroll = self.proxies.len().saturating_sub(visible);
+        self.proxy_scroll = self.proxy_scroll.min(max_scroll);
     }
 
     pub fn cursor_node(&self) -> Option<&ProxyNode> {

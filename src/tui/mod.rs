@@ -1,5 +1,6 @@
 pub mod clipboard;
 pub mod event;
+pub mod input;
 pub mod layout;
 pub mod state;
 pub mod term;
@@ -8,7 +9,7 @@ pub mod widgets;
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
+use crossterm::event::Event as CrosstermEvent;
 
 use event::Event;
 use state::AppState;
@@ -42,25 +43,14 @@ fn spawn_tick(tx: Sender<Event>) {
     });
 }
 
-fn quit_requested(key: &crossterm::event::KeyEvent) -> bool {
-    matches!(
-        (key.code, key.modifiers),
-        (KeyCode::Char('c'), KeyModifiers::CONTROL)
-            | (KeyCode::Char('q') | KeyCode::Char('й'), KeyModifiers::NONE)
-    )
-}
-
 fn handle_event(app: &mut AppState, event: Event) -> bool {
     match event {
-        Event::Key(key) => {
-            if quit_requested(&key) {
-                return true;
-            }
-            app.move_cursor(0);
+        Event::Key(key) => input::handle_key(app, &key),
+        Event::Mouse(mouse) => {
+            input::handle_mouse(app, &mouse);
             false
         }
         Event::Tick => false,
-        Event::Mouse(_) => false,
         Event::NetSample { up, down } => {
             app.push_traffic(up, down);
             false
@@ -87,7 +77,7 @@ pub fn run() -> anyhow::Result<()> {
             if handle_event(&mut app, event) {
                 break;
             }
-            terminal.draw(|frame| layout::render(frame, &app))?;
+            terminal.draw(|frame| layout::render(frame, &mut app))?;
         }
         Ok(())
     })();
@@ -99,7 +89,7 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossterm::event::{KeyEvent, KeyEventKind, KeyEventState};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 
     fn key(code: KeyCode, modifiers: KeyModifiers) -> Event {
         Event::Key(KeyEvent {

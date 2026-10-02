@@ -38,17 +38,26 @@ pub fn ping_color(delay_ms: Option<u64>) -> Color {
     let (r, g, b) = delay_color(delay_ms);
     Color::Rgb(r, g, b)
 }
-
-pub fn render_table(frame: &mut Frame, area: Rect, app: &AppState, focused: bool) {
+pub fn render_table(frame: &mut Frame, area: Rect, app: &mut AppState, focused: bool) {
     if app.proxies.is_empty() {
         let empty = Paragraph::new("Waiting for data…").block(frame_block(focused));
         frame.render_widget(empty, area);
         return;
     }
+    app.clamp_scroll();
+    let rows_rect = Rect::new(
+        area.x + 3,
+        area.y + 2,
+        area.width.saturating_sub(4),
+        area.height.saturating_sub(3),
+    );
+    app.proxy_visible = rows_rect.height as usize;
+    app.proxy_rows_rect = Some(rows_rect);
     let name_width = (area.width.saturating_sub(24)).max(8) as usize;
     let rows: Vec<Row> = app
         .proxies
         .iter()
+        .skip(app.proxy_scroll)
         .map(|n| {
             let mark = if n.selected { SELECTED_MARK } else { IDLE_MARK };
             let mark_style = if n.selected {
@@ -84,9 +93,7 @@ pub fn render_table(frame: &mut Frame, area: Rect, app: &AppState, focused: bool
         .highlight_symbol("» ");
 
     let mut state = TableState::default();
-    if !app.proxies.is_empty() {
-        state.select(Some(app.proxy_cursor.min(app.proxies.len() - 1)));
-    }
+    state.select(Some(app.proxy_cursor.saturating_sub(app.proxy_scroll)));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
