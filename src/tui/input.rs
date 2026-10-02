@@ -1,10 +1,15 @@
 #![allow(dead_code)]
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{
+    KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 
 use super::state::{AppState, Focus, ModalKind};
 
 pub fn handle_key(app: &mut AppState, key: &KeyEvent) -> bool {
+    if key.kind != KeyEventKind::Press {
+        return false;
+    }
     if matches!(key.code, KeyCode::Esc) {
         if app.modal.take().is_some() {
             app.focus = Focus::ProxyList;
@@ -32,12 +37,8 @@ pub fn handle_key(app: &mut AppState, key: &KeyEvent) -> bool {
         (KeyCode::Up, _) => app.move_cursor(-1),
         (KeyCode::Down, _) => app.move_cursor(1),
         (KeyCode::Enter, _) => {
-            app.master_enabled = !app.master_enabled;
-            app.set_toast(if app.master_enabled {
-                "Master ON"
-            } else {
-                "Master OFF"
-            });
+            app.master_dirty = true;
+            app.set_toast("Toggling master…");
         }
         (KeyCode::Char(' '), KeyModifiers::NONE) => apply_cursor_node(app),
         (KeyCode::Char('1'), KeyModifiers::NONE) => {
@@ -77,6 +78,7 @@ fn quit_combo(key: &KeyEvent) -> bool {
 
 fn set_mode(app: &mut AppState, mode: rclash_core_manager::api::ProxyMode) {
     app.mode = mode;
+    app.mode_dirty = true;
     app.set_toast(format!("Mode: {}", mode.as_str()));
 }
 
@@ -86,15 +88,23 @@ fn open_modal(app: &mut AppState, modal: ModalKind) {
 }
 
 fn apply_cursor_node(app: &mut AppState) {
-    let name = match app.cursor_node() {
-        Some(n) => n.name.clone(),
+    let node = match app.cursor_node() {
+        Some(n) => n.clone(),
         None => return,
     };
     for n in &mut app.proxies {
-        n.selected = n.name == name;
+        n.selected = n.name == node.name;
     }
-    app.selected_proxy = name.clone();
-    app.set_toast(format!("Selected {name}"));
+    app.selected_proxy = node.name.clone();
+    let group = if app.mode == rclash_core_manager::api::ProxyMode::Global {
+        "GLOBAL".to_owned()
+    } else if app.selected_group.is_empty() {
+        node.group.clone()
+    } else {
+        app.selected_group.clone()
+    };
+    app.select_request = Some((group, node.name.clone()));
+    app.set_toast(format!("Selected {}", node.name));
 }
 
 pub fn handle_mouse(app: &mut AppState, mouse: &MouseEvent) {
@@ -167,6 +177,21 @@ mod tests {
     }
 
     #[test]
+    fn release_and_repeat_are_ignored() {
+        let mut app = AppState::default();
+        for kind in [KeyEventKind::Release, KeyEventKind::Repeat] {
+            let key = KeyEvent {
+                code: KeyCode::Down,
+                modifiers: KeyModifiers::NONE,
+                kind,
+                state: KeyEventState::empty(),
+            };
+            assert!(!handle_key(&mut app, &key));
+        }
+        assert_eq!(app.proxy_cursor, 0);
+    }
+
+    #[test]
     fn tab_cycles_panels() {
         let mut app = AppState::default();
         assert_eq!(app.focus, Focus::ProxyList);
@@ -211,13 +236,14 @@ mod tests {
     }
 
     #[test]
-    fn enter_toggles_master_and_digits_set_mode() {
+    fn enter_requests_master_and_digits_set_mode() {
         let mut app = AppState::default();
         assert!(!handle_key(
             &mut app,
             &key(KeyCode::Enter, KeyModifiers::NONE)
         ));
-        assert!(app.master_enabled);
+        assert!(app.master_dirty);
+        assert!(!app.master_enabled);
         for (ch, mode) in [
             ('1', rclash_core_manager::api::ProxyMode::Rule),
             ('2', rclash_core_manager::api::ProxyMode::Global),

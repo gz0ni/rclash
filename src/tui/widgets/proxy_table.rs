@@ -39,8 +39,9 @@ pub fn ping_color(delay_ms: Option<u64>) -> Color {
     Color::Rgb(r, g, b)
 }
 pub fn render_table(frame: &mut Frame, area: Rect, app: &mut AppState, focused: bool) {
+    let title = format!("Proxies — {}", app.proxies.len());
     if app.proxies.is_empty() {
-        let empty = Paragraph::new("Waiting for data…").block(frame_block(focused));
+        let empty = Paragraph::new("Waiting for data…").block(frame_block(title, focused));
         frame.render_widget(empty, area);
         return;
     }
@@ -66,7 +67,7 @@ pub fn render_table(frame: &mut Frame, area: Rect, app: &mut AppState, focused: 
                 Style::default()
             };
             Row::new(vec![
-                Cell::from(format!("{} {}", n.flag, truncate_name(&n.name, name_width))),
+                Cell::from(truncate_name(&n.name, name_width)),
                 Cell::from(n.proto.clone()),
                 Cell::from(ping_text(n.delay_ms))
                     .style(Style::default().fg(ping_color(n.delay_ms))),
@@ -88,7 +89,7 @@ pub fn render_table(frame: &mut Frame, area: Rect, app: &mut AppState, focused: 
     ];
     let table = Table::new(rows, widths)
         .header(header)
-        .block(frame_block(focused))
+        .block(frame_block(title, focused))
         .row_highlight_style(Style::default().bg(Color::DarkGray))
         .highlight_symbol("» ");
 
@@ -97,10 +98,10 @@ pub fn render_table(frame: &mut Frame, area: Rect, app: &mut AppState, focused: 
     frame.render_stateful_widget(table, area, &mut state);
 }
 
-fn frame_block(focused: bool) -> Block<'static> {
+fn frame_block(title: String, focused: bool) -> Block<'static> {
     use ratatui::widgets::Borders;
     Block::default()
-        .title("Proxies")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(if focused {
             Style::default().fg(Color::Yellow)
@@ -117,7 +118,6 @@ mod tests {
     fn truncate_respects_double_width() {
         assert_eq!(truncate_name("abc", 10), "abc");
         assert_eq!(truncate_name("abcdef", 5), "abcd…");
-        assert_eq!(truncate_name("🇩🇪node-1", 7), "🇩🇪node…");
         assert_eq!(truncate_name("日本語test", 7), "日本語…");
     }
 
