@@ -3,6 +3,7 @@ pub mod event;
 pub mod layout;
 pub mod state;
 pub mod term;
+pub mod widgets;
 
 use std::sync::mpsc::Sender;
 use std::time::Duration;

@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use super::state::{AppState, Focus};
+use super::widgets::{chart, proxy_table};
 use rclash_core_manager::api::{format_bytes, ProxyMode};
 
 pub const MIN_W: u16 = 80;
@@ -95,26 +96,6 @@ fn traffic_summary(app: &AppState) -> Vec<Line<'static>> {
     ]
 }
 
-fn proxy_preview(app: &AppState) -> Vec<Line<'static>> {
-    if app.proxies.is_empty() {
-        return vec![Line::raw("Waiting for data…")];
-    }
-    app.proxies
-        .iter()
-        .take(64)
-        .enumerate()
-        .map(|(i, n)| {
-            let mark = if n.selected { "●" } else { "○" };
-            let style = if i == app.proxy_cursor {
-                Style::default().bg(Color::DarkGray)
-            } else {
-                Style::default()
-            };
-            Line::styled(format!("{mark} {} {}", n.flag, n.name), style)
-        })
-        .collect()
-}
-
 fn block(title: &'static str, focused: bool) -> Block<'static> {
     let border = if focused {
         Style::default().fg(Color::Yellow)
@@ -168,9 +149,7 @@ fn render_left(frame: &mut Frame, app: &AppState, area: Rect) {
     .block(block("Profile / Group", app.focus == Focus::ProxyList));
     frame.render_widget(profile, rows[0]);
 
-    let list =
-        Paragraph::new(proxy_preview(app)).block(block("Proxies", app.focus == Focus::ProxyList));
-    frame.render_widget(list, rows[1]);
+    proxy_table::render_table(frame, rows[1], app, app.focus == Focus::ProxyList);
 
     let counter = Paragraph::new(format!("Locations: {}", app.proxies.len()));
     frame.render_widget(counter, rows[2]);
@@ -196,13 +175,7 @@ fn render_right(frame: &mut Frame, app: &AppState, area: Rect) {
     ]));
     frame.render_widget(tabs, rows[0]);
 
-    let graph_text: Vec<Line> = if app.traffic.is_empty() {
-        vec![Line::raw("Waiting for data…")]
-    } else {
-        vec![Line::raw(format!("samples: {}", app.traffic.len()))]
-    };
-    let graph = Paragraph::new(graph_text).block(block("Traffic", app.focus == Focus::Side));
-    frame.render_widget(graph, rows[1]);
+    chart::render_chart(frame, rows[1], app, app.focus == Focus::Side);
 
     let summary = Paragraph::new(traffic_summary(app));
     frame.render_widget(summary, rows[2]);
